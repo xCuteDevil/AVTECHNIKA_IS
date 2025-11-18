@@ -8,7 +8,18 @@ from fastapi.middleware.cors import CORSMiddleware
 
 
 from database import SessionLocal, engine
-from models import Base, Item, Customer, Loan, User, UserRole
+from models import (
+    Base,
+    Item,
+    Customer,
+    Loan,
+    User,
+    UserRole,
+    Order,          # <- tohle
+    OrderStatus,    # <- a tohle
+)
+
+
 
 from datetime import datetime
 
@@ -95,6 +106,8 @@ class LoanBase(BaseModel):
     date_due: datetime
     condition_out: Optional[str] = None
     note: Optional[str] = None
+    order_id: Optional[int] = None   # NOVÉ
+
 
 
 class LoanCreate(LoanBase):
@@ -117,6 +130,36 @@ class LoanOut(BaseModel):
     note: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+# ---------- Pydantic schémata – ORDERS (zakázky) ----------
+
+class OrderBase(BaseModel):
+    customer_id: int
+    date_due: datetime
+    event_name: Optional[str] = None
+    event_location: Optional[str] = None
+    note: Optional[str] = None
+
+
+class OrderCreate(OrderBase):
+    code: Optional[str] = None
+
+
+class OrderOut(BaseModel):
+    id: int
+    code: Optional[str] = None
+    customer_id: int
+    created_at: datetime
+    date_out: datetime
+    date_due: datetime
+    date_closed: Optional[datetime] = None
+    event_name: Optional[str] = None
+    event_location: Optional[str] = None
+    note: Optional[str] = None
+    status: OrderStatus
+
+    model_config = ConfigDict(from_attributes=True)
+
 
 
 # ---------- Základ ----------
@@ -240,6 +283,15 @@ def get_or_create_system_user(db: Session) -> User:
 
 @app.post("/loans", response_model=LoanOut)
 def create_loan(loan_in: LoanCreate, db: Session = Depends(get_db)):
+    # 0) Pokud je zadáno order_id, ověříme zakázku
+    order = None
+    if loan_in.order_id is not None:
+        order = db.query(Order).get(loan_in.order_id)
+        if not order:
+            raise HTTPException(status_code=404, detail="Zakázka nenalezena.")
+        if order.status == OrderStatus.CANCELLED:
+            raise HTTPException(status_code=400, detail="Zakázka je zrušená.")
+
     # 1) Zkontrolovat, že položka existuje
     item = db.query(Item).get(loan_in.item_id)
     if not item:
@@ -273,11 +325,18 @@ def create_loan(loan_in: LoanCreate, db: Session = Depends(get_db)):
         date_due=loan_in.date_due,
         condition_out=loan_in.condition_out,
         note=loan_in.note,
+        order_id=loan_in.order_id,
     )
     db.add(loan)
+
+    # pokud je k zakázce, udržujeme status aspoň OPEN
+    if order is not None and order.status != OrderStatus.OPEN:
+        order.status = OrderStatus.OPEN
+
     db.commit()
     db.refresh(loan)
     return loan
+
 
 
 @app.get("/loans", response_model=List[LoanOut])
@@ -311,6 +370,69 @@ def return_loan(
     if loan_ret.condition_in is not None:
         loan.condition_in = loan_ret.condition_in
 
+    # pokud patří do zakázky, zkusíme případně uzavřít zakázku
+    if loan.order_id is not None:
+        order = loan.order
+        if order:
+            open_loans = (
+                db.query(Loan)
+                .filter(Loan.order_id == order.id, Loan.date_in.is_(None))
+                .count()
+            )
+            if open_loans == 0:
+                order.status = OrderStatus.CLOSED
+                order.date_closed = datetime.utcnow()
+
     db.commit()
     db.refresh(loan)
     return loan
+
+
+# ---------- ORDERS endpointy ----------
+
+@app.post("/orders", response_model=OrderOut)
+def create_order(order_in: OrderCreate, db: Session = Depends(get_db)):
+    customer = db.query(Customer).get(order_in.customer_id)
+    if not customer:
+        raise HTTPException(status_code=404, detail="Zákazník nenalezen.")
+
+    order = Order(
+        code=order_in.code,
+        customer_id=order_in.customer_id,
+        date_due=order_in.date_due,
+        event_name=order_in.event_name,
+        event_location=order_in.event_location,
+        note=order_in.note,
+    )
+    db.add(order)
+    db.commit()
+    db.refresh(order)
+    return order
+
+
+@app.get("/orders", response_model=List[OrderOut])
+def list_orders(db: Session = Depends(get_db)):
+    orders = db.query(Order).order_by(Order.created_at.desc()).all()
+    return orders
+
+
+@app.get("/orders/{order_id}", response_model=OrderOut)
+def get_order(order_id: int, db: Session = Depends(get_db)):
+    order = db.query(Order).get(order_id)
+    if not order:
+        raise HTTPException(status_code=404, detail="Zakázka nenalezena.")
+    return order
+
+
+@app.get("/orders/{order_id}/loans", response_model=List[LoanOut])
+def get_order_loans(order_id: int, db: Session = Depends(get_db)):
+    order = db.query(Order).get(order_id)
+    if not order:
+        raise HTTPException(status_code=404, detail="Zakázka nenalezena.")
+    loans = (
+        db.query(Loan)
+        .filter(Loan.order_id == order_id)
+        .order_by(Loan.id)
+        .all()
+    )
+    return loans

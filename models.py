@@ -5,6 +5,17 @@ from sqlalchemy import (
 from sqlalchemy.orm import relationship, declarative_base
 import enum
 
+class UserRole(str, enum.Enum):
+    STAFF = "STAFF"
+    ADMIN = "ADMIN"
+
+
+class OrderStatus(str, enum.Enum):
+    OPEN = "OPEN"
+    CLOSED = "CLOSED"
+    CANCELLED = "CANCELLED"
+
+
 Base = declarative_base()
 
 
@@ -50,6 +61,36 @@ class Customer(Base):
     note = Column(Text)
 
     loans = relationship("Loan", back_populates="customer")
+    orders = relationship("Order", back_populates="customer")  # NOVÉ
+
+# -----------------------------
+# Orders (zakázky)
+# -----------------------------
+class Order(Base):
+    __tablename__ = "orders"
+
+    id = Column(Integer, primary_key=True)
+    code = Column(String(50), unique=True)  # volitelný hezký kód, může být None
+
+    customer_id = Column(Integer, ForeignKey("customers.id"), nullable=False)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    date_out = Column(DateTime, default=datetime.utcnow)
+    date_due = Column(DateTime, nullable=False)
+    date_closed = Column(DateTime, nullable=True)
+
+    event_name = Column(String(255))
+    event_location = Column(String(255))
+    note = Column(Text)
+
+    status = Column(Enum(OrderStatus), nullable=False, default=OrderStatus.OPEN)
+
+    customer = relationship("Customer", back_populates="orders")
+    loans = relationship(
+        "Loan",
+        back_populates="order",
+        cascade="all, delete-orphan",
+    )
 
 
 # -----------------------------
@@ -99,6 +140,9 @@ class Loan(Base):
     item_id = Column(Integer, ForeignKey("items.id"), nullable=False)
     customer_id = Column(Integer, ForeignKey("customers.id"), nullable=False)
 
+    # NOVÉ: vazba na zakázku
+    order_id = Column(Integer, ForeignKey("orders.id"), nullable=True)
+
     issued_by = Column(Integer, ForeignKey("users.id"), nullable=False)
     received_by = Column(Integer, ForeignKey("users.id"), nullable=True)
 
@@ -118,3 +162,6 @@ class Loan(Base):
                                   back_populates="issued_loans")
     received_by_user = relationship("User", foreign_keys=[received_by],
                                     back_populates="received_loans")
+
+    # NOVÉ: vztah k zakázce
+    order = relationship("Order", back_populates="loans")
