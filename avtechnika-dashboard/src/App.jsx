@@ -1,5 +1,6 @@
 // src/App.jsx
 import { useEffect, useState, Fragment, useRef } from "react";
+import { flushSync } from "react-dom";
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode";
 
 const API_BASE =
@@ -82,6 +83,8 @@ function ItemsView() {
   const [scanOpen, setScanOpen] = useState(false);
   const itemQrRef = useRef(null);
   const [scanStatus, setScanStatus] = useState("");
+  const [lastDecoded, setLastDecoded] = useState("");
+  const codeInputRef = useRef(null);
 
   const loadItems = async () => {
     const res = await fetch(`${API_BASE}/items`);
@@ -145,28 +148,40 @@ function ItemsView() {
 
       try {
         setScanStatus("Spouštím čtečku...");
-        const qr = new Html5Qrcode(elId);
+        const qr = new Html5Qrcode(elId, { verbose: true });
         itemQrRef.current = qr;
         await qr.start(
           { facingMode: "environment" },
           {
             fps: 10,
-            qrbox: { width: 220, height: 220 },
+            qrbox: { width: 280, height: 280 },
+            aspectRatio: 1.0,
             formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
+            experimentalFeatures: { useBarCodeDetectorIfSupported: true },
           },
           async (decodedText) => {
-            // zastav skenování hned po prvním načtení, aby se nerozbila stránka
-            if (itemQrRef.current) {
-              await itemQrRef.current.stop().catch(() => {});
-              await itemQrRef.current.clear().catch(() => {});
-              itemQrRef.current = null;
-            }
             const value = (decodedText ?? "").trim();
             console.log("QR decode OK (item):", value);
-            setForm((f) => ({ ...f, code: value }));
+            setLastDecoded(value);
+            // vynutíme synchronní update hodnoty pole před zavřením čtečky
+            flushSync(() => {
+              setForm((f) => ({ ...f, code: value }));
+            });
+            // fallback přímé propsání do inputu, kdyby se render opozdil
+            if (codeInputRef.current) {
+              try { codeInputRef.current.value = value; } catch {}
+            }
             setScanStatus(`Načteno: ${value}`);
-            // drobné zpoždění kvůli iOS re-renderu
-            setTimeout(() => setScanOpen(false), 0);
+            // počkáme na jeden frame a teprve potom korektně ukončíme čtečku
+            await new Promise((resolve) => requestAnimationFrame(() => resolve()));
+            setTimeout(async () => {
+              if (itemQrRef.current) {
+                await itemQrRef.current.stop().catch(() => {});
+                await itemQrRef.current.clear().catch(() => {});
+                itemQrRef.current = null;
+              }
+              setScanOpen(false);
+            }, 30);
           },
           (scanErr) => {
             // indikujeme, že kamera běží; při opakovaných pokeusech ukazujeme chybu
@@ -206,6 +221,7 @@ function ItemsView() {
           value={form.code}
           onChange={handleChange}
           required
+          ref={codeInputRef}
           className="px-3 py-2 rounded-md bg-slate-800 border border-slate-700 text-sm flex-1 min-w-[140px]"
         />
         <button
@@ -263,6 +279,12 @@ function ItemsView() {
       {scanStatus && (
         <div className="mb-3 text-sm text-emerald-300">{scanStatus}</div>
       )}
+      {lastDecoded && (
+        <div className="mb-3 text-xs text-slate-300">Poslední QR: {lastDecoded}</div>
+      )}
+      <div className="mb-3 text-[11px] text-slate-500">
+        Debug – hodnota pole: <span className="font-mono">{form.code || "(prázdné)"}</span>
+      </div>
 
       <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-900/40">
         <table className="min-w-full text-sm">
