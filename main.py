@@ -33,7 +33,12 @@ app = FastAPI(title="AV Technika IS")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://192.168.45.118:5173",  # přístup z telefonu v LAN
+        "https://192.168.45.118:5173",  # https varianta pro kameru
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -128,6 +133,7 @@ class LoanOut(BaseModel):
     condition_out: Optional[str] = None
     condition_in: Optional[str] = None
     note: Optional[str] = None
+    order_id: Optional[int] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -143,6 +149,12 @@ class OrderBase(BaseModel):
 
 class OrderCreate(OrderBase):
     code: Optional[str] = None
+
+
+class OrderAddItem(BaseModel):
+    item_code: str
+    condition_out: Optional[str] = None
+    note: Optional[str] = None
 
 
 class OrderOut(BaseModel):
@@ -424,6 +436,57 @@ def get_order(order_id: int, db: Session = Depends(get_db)):
     return order
 
 
+@app.post("/orders/{order_id}/add_item_by_code", response_model=LoanOut)
+def add_item_to_order(
+    order_id: int,
+    payload: OrderAddItem,
+    db: Session = Depends(get_db),
+):
+    order = db.query(Order).get(order_id)
+    if not order:
+        raise HTTPException(status_code=404, detail="Zakázka nenalezena.")
+    if order.status == OrderStatus.CANCELLED:
+        raise HTTPException(status_code=400, detail="Zakázka je zrušená.")
+    if order.status == OrderStatus.CLOSED:
+        raise HTTPException(status_code=400, detail="Zakázka je uzavřená.")
+
+    item = db.query(Item).filter(Item.code == payload.item_code).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Položka s tímto kódem nenalezena.")
+
+    # ověřit, že položka není aktivně vypůjčená
+    existing = (
+        db.query(Loan)
+        .filter(Loan.item_id == item.id, Loan.date_in.is_(None))
+        .first()
+    )
+    if existing:
+        raise HTTPException(
+            status_code=400,
+            detail="Položka je již vypůjčená (existuje aktivní výpůjčka).",
+        )
+
+    customer = db.query(Customer).get(order.customer_id)
+    if not customer:
+        raise HTTPException(status_code=404, detail="Zákazník zakázky nenalezen.")
+
+    system_user = get_or_create_system_user(db)
+
+    loan = Loan(
+        item_id=item.id,
+        customer_id=customer.id,
+        issued_by=system_user.id,
+        date_due=order.date_due,
+        condition_out=payload.condition_out,
+        note=payload.note,
+        order_id=order.id,
+    )
+    db.add(loan)
+    db.commit()
+    db.refresh(loan)
+    return loan
+
+
 @app.get("/orders/{order_id}/loans", response_model=List[LoanOut])
 def get_order_loans(order_id: int, db: Session = Depends(get_db)):
     order = db.query(Order).get(order_id)
@@ -436,3 +499,33 @@ def get_order_loans(order_id: int, db: Session = Depends(get_db)):
         .all()
     )
     return loans
+
+
+@app.patch("/orders/{order_id}/close", response_model=OrderOut)
+def close_order(order_id: int, db: Session = Depends(get_db)):
+    order = db.query(Order).get(order_id)
+    if not order:
+        raise HTTPException(status_code=404, detail="Zakázka nenalezena.")
+
+    if order.status == OrderStatus.CANCELLED:
+        raise HTTPException(status_code=400, detail="Zakázka je zrušená.")
+    if order.status == OrderStatus.CLOSED:
+        raise HTTPException(status_code=400, detail="Zakázka je již uzavřená.")
+
+    open_loans = (
+        db.query(Loan)
+        .filter(Loan.order_id == order.id, Loan.date_in.is_(None))
+        .count()
+    )
+    if open_loans > 0:
+        raise HTTPException(
+            status_code=400,
+            detail="Zakázku nelze uzavřít, dokud má aktivní výpůjčky.",
+        )
+
+    order.status = OrderStatus.CLOSED
+    order.date_closed = datetime.utcnow()
+
+    db.commit()
+    db.refresh(order)
+    return order
