@@ -76,6 +76,14 @@ class ItemOut(ItemBase):
     id: int
     model_config = ConfigDict(from_attributes=True)
 
+class ItemUpdate(BaseModel):
+    code: Optional[str] = None
+    name: Optional[str] = None
+    category: Optional[str] = None
+    manufacturer: Optional[str] = None
+    serial_number: Optional[str] = None
+    location: Optional[str] = None
+    condition_note: Optional[str] = None
 
 # ---------- Pydantic schémata – CUSTOMERS ----------
 
@@ -209,6 +217,31 @@ def list_items(db: Session = Depends(get_db)):
     items = db.query(Item).all()
     return items
 
+
+@app.put("/items/{item_id}", response_model=ItemOut)
+def update_item(
+    item_id: int,
+    item_in: ItemUpdate,
+    db: Session = Depends(get_db),
+):
+    item = db.query(Item).get(item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Položka nenalezena.")
+
+    data = item_in.dict(exclude_unset=True)
+    # ohlídat unikátní kód
+    new_code = data.get("code")
+    if new_code is not None and new_code != item.code:
+        exists = db.query(Item).filter(Item.code == new_code).first()
+        if exists:
+            raise HTTPException(status_code=400, detail="Položka s tímto kódem už existuje.")
+
+    for key, value in data.items():
+        setattr(item, key, value)
+
+    db.commit()
+    db.refresh(item)
+    return item
 
 # ---------- CUSTOMERS endpointy ----------
 

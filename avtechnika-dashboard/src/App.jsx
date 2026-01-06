@@ -77,14 +77,52 @@ function ItemsView() {
     category: "",
     manufacturer: "",
     serial_number: "",
-    location: "",
     condition_note: "",
   });
+  const [editId, setEditId] = useState(null);
   const [scanOpen, setScanOpen] = useState(false);
   const itemQrRef = useRef(null);
   const [scanStatus, setScanStatus] = useState("");
   const [lastDecoded, setLastDecoded] = useState("");
   const codeInputRef = useRef(null);
+  const nameInputRef = useRef(null);
+  const categoryInputRef = useRef(null);
+
+  const parseItemFromQr = (text) => {
+    const raw = (text ?? "").trim();
+    if (!raw) return {};
+    // 1) JSON payload: {"code":"...","name":"...","category":"..."}
+    try {
+      const obj = JSON.parse(raw);
+      if (obj && typeof obj === "object") {
+        return {
+          code: obj.code ?? undefined,
+          name: obj.name ?? undefined,
+          category: obj.category ?? undefined,
+        };
+      }
+    } catch {}
+    // 2) Pipe-separated: CODE|NAME|CATEGORY
+    if (raw.includes("|")) {
+      const [code, name, category] = raw.split("|").map((s) => s.trim());
+      return { code, name, category };
+    }
+    // 3) Key-value: code=XXX;name=YYY;category=ZZZ
+    if (raw.includes("=")) {
+      const out = {};
+      raw.split(";").forEach((pair) => {
+        const [k, v] = pair.split("=").map((s) => (s || "").trim());
+        if (k && v) out[k] = v;
+      });
+      return {
+        code: out.code ?? undefined,
+        name: out.name ?? undefined,
+        category: out.category ?? undefined,
+      };
+    }
+    // 4) Fallback: celý obsah je kód položky
+    return { code: raw };
+  };
 
   const loadItems = async () => {
     const res = await fetch(`${API_BASE}/items`);
@@ -102,8 +140,10 @@ function ItemsView() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const res = await fetch(`${API_BASE}/items`, {
-      method: "POST",
+    const url = editId ? `${API_BASE}/items/${editId}` : `${API_BASE}/items`;
+    const method = editId ? "PUT" : "POST";
+    const res = await fetch(url, {
+      method,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(form),
     });
@@ -117,11 +157,38 @@ function ItemsView() {
         location: "",
         condition_note: "",
       });
+      setEditId(null);
       loadItems();
     } else {
       const err = await res.json();
       alert("Chyba: " + err.detail);
     }
+  };
+
+  const startEdit = (it) => {
+    setForm({
+      code: it.code || "",
+      name: it.name || "",
+      category: it.category || "",
+      manufacturer: it.manufacturer || "",
+      serial_number: it.serial_number || "",
+      condition_note: it.condition_note || "",
+    });
+    setEditId(it.id);
+    setScanOpen(false);
+    setScanStatus("");
+  };
+
+  const cancelEdit = () => {
+    setEditId(null);
+    setForm({
+      code: "",
+      name: "",
+      category: "",
+      manufacturer: "",
+      serial_number: "",
+      condition_note: "",
+    });
   };
 
   useEffect(() => {
@@ -161,17 +228,34 @@ function ItemsView() {
           },
           async (decodedText) => {
             const value = (decodedText ?? "").trim();
-            console.log("QR decode OK (item):", value);
+            const parsed = parseItemFromQr(value);
+            console.log("QR decode OK (item):", value, parsed);
             setLastDecoded(value);
-            // vynutíme synchronní update hodnoty pole před zavřením čtečky
+            // vynutíme synchronní update hodnot formuláře
             flushSync(() => {
-              setForm((f) => ({ ...f, code: value }));
+              setForm((f) => ({
+                ...f,
+                code: parsed.code ?? f.code,
+                name: parsed.name ?? f.name,
+                category: parsed.category ?? f.category,
+              }));
             });
-            // fallback přímé propsání do inputu, kdyby se render opozdil
-            if (codeInputRef.current) {
-              try { codeInputRef.current.value = value; } catch {}
+            // fallback přímé propsání do inputu s kódem (pro jistotu)
+            if (codeInputRef.current && (parsed.code ?? value)) {
+              try { codeInputRef.current.value = parsed.code ?? value; } catch {}
             }
-            setScanStatus(`Načteno: ${value}`);
+            // rovnou propsat i do názvu/kategorie (pro jistotu na mobilech)
+            if (nameInputRef.current && parsed.name) {
+              try { nameInputRef.current.value = parsed.name; } catch {}
+            }
+            if (categoryInputRef.current && parsed.category) {
+              try { categoryInputRef.current.value = parsed.category; } catch {}
+            }
+            setScanStatus(
+              `Načteno: ${parsed.code ?? value}${
+                parsed.name ? ` • ${parsed.name}` : ""
+              }${parsed.category ? ` • ${parsed.category}` : ""}`
+            );
             // počkáme na jeden frame a teprve potom korektně ukončíme čtečku
             await new Promise((resolve) => requestAnimationFrame(() => resolve()));
             setTimeout(async () => {
@@ -240,6 +324,7 @@ function ItemsView() {
           value={form.name}
           onChange={handleChange}
           required
+          ref={nameInputRef}
           className="px-3 py-2 rounded-md bg-slate-800 border border-slate-700 text-sm flex-1 min-w-[160px]"
         />
         <input
@@ -247,21 +332,24 @@ function ItemsView() {
           placeholder="Kategorie"
           value={form.category}
           onChange={handleChange}
-          className="px-3 py-2 rounded-md bg-slate-800 border border-slate-700 text-sm flex-1 min-w-[120px]"
-        />
-        <input
-          name="location"
-          placeholder="Umístění"
-          value={form.location}
-          onChange={handleChange}
+          ref={categoryInputRef}
           className="px-3 py-2 rounded-md bg-slate-800 border border-slate-700 text-sm flex-1 min-w-[120px]"
         />
         <button
           type="submit"
           className="px-4 py-2 rounded-md bg-blue-500 hover:bg-blue-600 text-sm font-medium"
         >
-          Přidat položku
+          {editId ? "Uložit změny" : "Přidat položku"}
         </button>
+        {editId && (
+          <button
+            type="button"
+            onClick={cancelEdit}
+            className="px-4 py-2 rounded-md bg-slate-700 hover:bg-slate-600 text-sm font-medium"
+          >
+            Zrušit editaci
+          </button>
+        )}
       </form>
 
       {scanOpen && (
@@ -282,8 +370,10 @@ function ItemsView() {
       {lastDecoded && (
         <div className="mb-3 text-xs text-slate-300">Poslední QR: {lastDecoded}</div>
       )}
-      <div className="mb-3 text-[11px] text-slate-500">
-        Debug – hodnota pole: <span className="font-mono">{form.code || "(prázdné)"}</span>
+      <div className="mb-3 text-[11px] text-slate-500 space-x-3">
+        <span>Debug – kód: <span className="font-mono">{form.code || "(prázdné)"}</span></span>
+        <span>název: <span className="font-mono">{form.name || "(prázdné)"}</span></span>
+        <span>kategorie: <span className="font-mono">{form.category || "(prázdné)"}</span></span>
       </div>
 
       <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-900/40">
@@ -294,7 +384,7 @@ function ItemsView() {
               <Th>Kód</Th>
               <Th>Název</Th>
               <Th>Kategorie</Th>
-              <Th>Umístění</Th>
+              <Th>Akce</Th>
             </tr>
           </thead>
           <tbody>
@@ -307,7 +397,14 @@ function ItemsView() {
                 <Td className="font-mono">{it.code}</Td>
                 <Td>{it.name}</Td>
                 <Td>{it.category}</Td>
-                <Td>{it.location}</Td>
+                <Td>
+                  <button
+                    onClick={() => startEdit(it)}
+                    className="px-3 py-1 rounded-md bg-amber-500 hover:bg-amber-600 text-xs font-medium"
+                  >
+                    Upravit
+                  </button>
+                </Td>
               </tr>
             ))}
             {items.length === 0 && (
