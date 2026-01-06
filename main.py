@@ -213,10 +213,42 @@ def create_item(item_in: ItemCreate, db: Session = Depends(get_db)):
 
 
 @app.get("/items", response_model=List[ItemOut])
-def list_items(db: Session = Depends(get_db)):
-    items = db.query(Item).all()
+def list_items(include_inactive: bool = False, db: Session = Depends(get_db)):
+    if include_inactive:
+        items = db.query(Item).order_by(Item.id).all()
+    else:
+        items = db.query(Item).filter(Item.is_active.is_(True)).order_by(Item.id).all()
     return items
 
+
+@app.delete("/items/{item_id}", status_code=204)
+def delete_item(item_id: int, db: Session = Depends(get_db)):
+    item = db.query(Item).get(item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Položka nenalezena.")
+
+    # neumožníme smazat, pokud existují (byť historické) výpůjčky na danou položku
+    loans_count = db.query(Loan).filter(Loan.item_id == item_id).count()
+    if loans_count > 0:
+        raise HTTPException(
+            status_code=400,
+            detail="Položku nelze smazat – existují výpůjčky pro tuto položku.",
+        )
+
+    db.delete(item)
+    db.commit()
+    return None
+
+
+@app.patch("/items/{item_id}/archive", response_model=ItemOut)
+def archive_item(item_id: int, db: Session = Depends(get_db)):
+    item = db.query(Item).get(item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Položka nenalezena.")
+    item.is_active = False
+    db.commit()
+    db.refresh(item)
+    return item
 
 @app.put("/items/{item_id}", response_model=ItemOut)
 def update_item(

@@ -404,6 +404,45 @@ function ItemsView() {
                   >
                     Upravit
                   </button>
+                  <button
+                    onClick={async () => {
+                      if (!confirm("Opravdu smazat tuto položku?")) return;
+                      const res = await fetch(`${API_BASE}/items/${it.id}`, { method: "DELETE" });
+                      if (res.status === 204) {
+                        if (editId === it.id) cancelEdit();
+                        loadItems();
+                      } else {
+                        try {
+                          const err = await res.json();
+                          const msg = String(err.detail || res.statusText || "");
+                          if (msg.includes("nelze smazat") || msg.includes("existují výpůjčky")) {
+                            if (confirm("Nelze smazat – existují výpůjčky. Chceš položku archivovat?")) {
+                              const a = await fetch(`${API_BASE}/items/${it.id}/archive`, { method: "PATCH" });
+                              if (a.ok) {
+                                if (editId === it.id) cancelEdit();
+                                loadItems();
+                                return;
+                              } else {
+                                try {
+                                  const e2 = await a.json();
+                                  alert("Archivace selhala: " + (e2.detail || a.statusText));
+                                } catch {
+                                  alert("Archivace selhala.");
+                                }
+                                return;
+                              }
+                            }
+                          }
+                          alert("Chyba při mazání: " + msg);
+                        } catch {
+                          alert("Chyba při mazání.");
+                        }
+                      }
+                    }}
+                    className="ml-2 px-3 py-1 rounded-md bg-rose-600 hover:bg-rose-700 text-xs font-medium"
+                  >
+                    Smazat
+                  </button>
                 </Td>
               </tr>
             ))}
