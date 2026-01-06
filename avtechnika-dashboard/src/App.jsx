@@ -823,8 +823,8 @@ function OrdersView() {
     event_name: "",
     event_location: "",
     note: "",
-    code: "",
   });
+  const [selectedItemIds, setSelectedItemIds] = useState([]);
 
   const loadAll = async () => {
     const [ordersRes, custRes, itemsRes] = await Promise.all([
@@ -853,7 +853,6 @@ function OrdersView() {
       event_name: form.event_name,
       event_location: form.event_location,
       note: form.note,
-      code: form.code || null,
     };
     const res = await fetch(`${API_BASE}/orders`, {
       method: "POST",
@@ -861,15 +860,63 @@ function OrdersView() {
       body: JSON.stringify(payload),
     });
     if (res.ok) {
+      const createdOrder = await res.json();
+
+      // pokud jsou vybrané položky, založíme k nim výpůjčky v rámci zakázky
+      let createdLoans = 0;
+      let failedLoans = [];
+      if (selectedItemIds.length > 0) {
+        const loanPayloadBase = {
+          customer_id: Number(form.customer_id),
+          date_due: form.date_due ? form.date_due + "T00:00:00" : null,
+          condition_out: "",
+          note: "",
+          order_id: createdOrder.id,
+        };
+        for (const itemId of selectedItemIds) {
+          try {
+            const lr = await fetch(`${API_BASE}/loans`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ ...loanPayloadBase, item_id: Number(itemId) }),
+            });
+            if (lr.ok) {
+              createdLoans += 1;
+            } else {
+              let detail = lr.statusText;
+              try {
+                const ejson = await lr.json();
+                detail = ejson.detail || detail;
+              } catch {}
+              failedLoans.push({ itemId, detail });
+            }
+          } catch (err) {
+            failedLoans.push({ itemId, detail: String(err) });
+          }
+        }
+      }
+
       setForm({
         customer_id: "",
         date_due: "",
         event_name: "",
         event_location: "",
         note: "",
-        code: "",
       });
+      setSelectedItemIds([]);
       loadAll();
+      if (selectedItemIds.length > 0) {
+        const details =
+          failedLoans
+            .slice(0, 6)
+            .map((f) => `#${f.itemId}: ${f.detail}`)
+            .join("\n") || "";
+        alert(
+          `Zakázka vytvořena (ID ${createdOrder.id}).\nPoložky: přidáno ${createdLoans}, chyby ${failedLoans.length}${
+            details ? `\n${details}` : ""
+          }`
+        );
+      }
     } else {
       const err = await res.json();
       alert("Chyba: " + err.detail);
@@ -1065,13 +1112,29 @@ function OrdersView() {
           className="px-3 py-2 rounded-md bg-slate-800 border border-slate-700 text-sm flex-1 min-w-[160px]"
         />
 
-        <input
-          name="code"
-          placeholder="Kód zakázky (např. 2025-001)"
-          value={form.code}
-          onChange={handleChange}
-          className="px-3 py-2 rounded-md bg-slate-800 border border-slate-700 text-sm flex-1 min-w-[160px]"
-        />
+        <div className="w-full" />
+        <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
+          <div className="text-sm text-slate-300">Vyber techniku do zakázky</div>
+          <div className="text-right text-[11px] text-slate-400">
+            podrž Ctrl/Cmd pro vícenásobný výběr
+          </div>
+          <select
+            multiple
+            value={selectedItemIds.map(String)}
+            onChange={(e) =>
+              setSelectedItemIds(
+                Array.from(e.target.selectedOptions).map((o) => Number(o.value))
+              )
+            }
+            className="col-span-1 md:col-span-2 min-h-[140px] px-3 py-2 rounded-md bg-slate-800 border border-slate-700 text-sm w-full"
+          >
+            {items.map((i) => (
+              <option key={i.id} value={i.id}>
+                {i.code} — {i.name}
+              </option>
+            ))}
+          </select>
+        </div>
 
         <button
           type="submit"
@@ -1086,7 +1149,6 @@ function OrdersView() {
           <thead className="bg-slate-800/80">
             <tr>
               <Th>ID</Th>
-              <Th>Kód</Th>
               <Th>Zákazník</Th>
               <Th>Vytvořeno</Th>
               <Th>Do</Th>
@@ -1098,13 +1160,12 @@ function OrdersView() {
             {orders.map((o) => (
               <Fragment key={o.id}>
                 <tr className="border-t border-slate-800 hover:bg-slate-800/40">
-                  <Td>{o.id}</Td>
-                  <Td className="font-mono">
+                  <Td>
                     <button
                       className="text-blue-300 hover:underline"
                       onClick={() => toggleOrder(o.id)}
                     >
-                      {o.code || "-"}
+                      #{o.id}
                     </button>
                   </Td>
                   <Td>{getCustomerName(o.customer_id)}</Td>
