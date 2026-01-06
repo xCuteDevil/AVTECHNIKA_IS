@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="cs">
+<head>
+  <meta charset="utf-8" />
+  <title>AV Technika – IS výpůjček · Stručné info</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root {
+      --fg: #0f172a;
+      --muted: #334155;
+      --accent: #2563eb;
+      --bg: #ffffff;
+      --border: #e2e8f0;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font: 14px/1.45 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      color: var(--fg);
+      background: var(--bg);
+    }
+    .page {
+      max-width: 900px;
+      margin: 32px auto;
+      padding: 32px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+    }
+    h1 {
+      font-size: 24px;
+      margin: 0 0 12px;
+    }
+    h2 {
+      font-size: 16px;
+      margin: 20px 0 8px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    p { margin: 8px 0; }
+    ul { margin: 6px 0 8px 18px; }
+    code, kbd {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      background: #f8fafc;
+      padding: 0 4px;
+      border: 1px solid #e5e7eb;
+      border-radius: 4px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px 24px;
+    }
+    .kicker {
+      color: var(--muted);
+      margin-bottom: 16px;
+    }
+    .box {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 14px;
+      background: #fff;
+    }
+    .muted { color: var(--muted); }
+    .pill {
+      display: inline-block;
+      border: 1px solid var(--border);
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      color: var(--muted);
+      margin-right: 6px;
+      margin-bottom: 6px;
+    }
+    .badges { display: flex; flex-wrap: wrap; gap: 6px; }
+    .hr { height: 1px; background: var(--border); margin: 20px 0; }
+    .print-hint {
+      margin-top: 20px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    @media print {
+      body { background: #fff; }
+      .page { border: none; margin: 0; border-radius: 0; }
+      .print-hint { display: none; }
+    }
+  </style>
+  <meta name="description" content="Stručné informace o projektu AV Technika – IS výpůjček (technologie, architektura, běh a nasazení)." />
+</head>
+<body>
+  <main class="page">
+    <h1>AV Technika – IS výpůjček</h1>
+    <div class="kicker">Stručné informace o projektu (technologie, architektura, běh a nasazení)</div>
+
+    <div class="grid">
+      <section class="box">
+        <h2>Popis</h2>
+        <p>Interní systém pro evidenci techniky, zákazníků, výpůjček a zakázek. Frontend umožňuje skenování QR kódů (mobil) a rychlé přidávání položek / výpůjček.</p>
+      </section>
+      <section class="box">
+        <h2>Repo a struktura</h2>
+        <ul>
+          <li><code>main.py</code> – REST API (FastAPI)</li>
+          <li><code>models.py</code>, <code>migrations/</code> – SQLAlchemy/Alembic</li>
+          <li><code>avtechnika-dashboard/</code> – React/Vite frontend</li>
+          <li><code>certs/</code> – lokální vývojové certifikáty (necommitovat)</li>
+          <li><code>dev.db</code> – SQLite pro vývoj</li>
+        </ul>
+      </section>
+    </div>
+
+    <section class="box">
+      <h2>Použité technologie</h2>
+      <div class="badges">
+        <span class="pill">Frontend: React 19</span>
+        <span class="pill">Vite 7</span>
+        <span class="pill">Tailwind CSS 4</span>
+        <span class="pill">html5-qrcode</span>
+        <span class="pill">Backend: FastAPI</span>
+        <span class="pill">Uvicorn</span>
+        <span class="pill">SQLAlchemy 2</span>
+        <span class="pill">Pydantic v2</span>
+        <span class="pill">Alembic</span>
+        <span class="pill">SQLite (dev)</span>
+      </div>
+      <p class="muted">Doporučená DB pro produkci: Postgres (např. Supabase/Neon). Frontend lze nasadit na Cloudflare Pages, backend na Fly.io/Render/Railway.</p>
+    </section>
+
+    <div class="grid">
+      <section class="box">
+        <h2>Architektura API</h2>
+        <ul>
+          <li><code>/health</code> – liveness</li>
+          <li><code>/items</code> – CRUD položek</li>
+          <li><code>/customers</code> – CRUD zákazníků</li>
+          <li><code>/loans</code> – výpůjčky (+<code>/return</code>)</li>
+          <li><code>/orders</code> – zakázky (+<code>/add_item_by_code</code>, <code>/close</code>, <code>/{id}/loans</code>)</li>
+        </ul>
+        <p>CORS povolené pro lokální dev: <code>http(s)://localhost:5173</code> a LAN IP.</p>
+      </section>
+      <section class="box">
+        <h2>QR sken na mobilu</h2>
+        <ul>
+          <li>Pro kameru je nutný <strong>HTTPS</strong> a povolení přístupu.</li>
+          <li>Vývoj: doporučeno <code>mkcert</code> certifikáty a spuštění Vite s <code>VITE_DEV_HTTPS=true</code>.</li>
+          <li>Frontend defaultně volá API na <code>https://HOST:8000</code> (přes <code>window.location</code>), lze přepsat <code>VITE_API_BASE</code>.</li>
+        </ul>
+      </section>
+    </div>
+
+    <section class="box">
+      <h2>Jak spustit (vývoj)</h2>
+      <p><strong>Backend (HTTPS):</strong></p>
+      <pre><code>cd AVTECHNIKA_IS
+source venv/bin/activate
+uvicorn main:app --host 0.0.0.0 --port 8000 \
+  --ssl-keyfile certs/dev.key --ssl-certfile certs/dev.crt</code></pre>
+      <p><strong>Frontend (LAN + HTTPS):</strong></p>
+      <pre><code>cd avtechnika-dashboard
+VITE_DEV_HTTPS=true npm install
+VITE_DEV_HTTPS=true npm run dev -- --host 0.0.0.0</code></pre>
+      <p>Otevři na telefonu: <code>https://&lt;LAN_IP&gt;:5173</code>. Pokud je potřeba, potvrď self-signed certifikát (nebo nainstaluj mkcert CA).</p>
+    </section>
+
+    <div class="grid">
+      <section class="box">
+        <h2>Nasazení (doporučení)</h2>
+        <ul>
+          <li><strong>Frontend</strong>: Cloudflare Pages (0&nbsp;USD u malých projektů)</li>
+          <li><strong>Backend</strong>: Fly.io / Render / Railway (HTTPS, jednoduchý deploy)</li>
+          <li><strong>DB</strong>: Postgres (Supabase/Neon). Přenést migrace (Alembic).</li>
+        </ul>
+      </section>
+      <section class="box">
+        <h2>Bezpečnost</h2>
+        <ul>
+          <li>Žádná tajemství v repu. <code>certs/*.key</code>, <code>certs/*.crt</code> jsou v <code>.gitignore</code>.</li>
+          <li>V produkci používat HTTPS certifikáty z důvěryhodné CA.</li>
+          <li>Pro DB v produkci zapnout přístupová práva a audit logy.</li>
+        </ul>
+      </section>
+    </div>
+
+    <div class="hr"></div>
+    <p class="print-hint">Tip: Soubor otevři v prohlížeči a použij Tisk → Uložit jako PDF.</p>
+  </main>
+</body>
+</html>
+
