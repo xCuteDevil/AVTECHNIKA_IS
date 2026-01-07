@@ -825,6 +825,8 @@ function OrdersView() {
     note: "",
   });
   const [selectedItemIds, setSelectedItemIds] = useState([]);
+  const [addSearch, setAddSearch] = useState("");
+  const [bulkCodesDraft, setBulkCodesDraft] = useState("");
 
   const loadAll = async () => {
     const [ordersRes, custRes, itemsRes] = await Promise.all([
@@ -1113,27 +1115,187 @@ function OrdersView() {
         />
 
         <div className="w-full" />
-        <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
-          <div className="text-sm text-slate-300">Vyber techniku do zakázky</div>
-          <div className="text-right text-[11px] text-slate-400">
-            podrž Ctrl/Cmd pro vícenásobný výběr
+        <div className="w-full grid grid-cols-1 gap-3 mt-2">
+          <div className="text-sm text-slate-300">Přidat techniku do zakázky</div>
+          <div className="flex gap-2 items-center">
+            <input
+              value={addSearch}
+              onChange={(e) => setAddSearch(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  // prefer exact code match, otherwise první výsledek
+                  const norm = (s) =>
+                    (s || "")
+                      .replace(/\u2013|\u2014|\u2212|\u2010|\u2011/g, "-")
+                      .replace(/\u00A0/g, " ")
+                      .trim()
+                      .toLowerCase();
+                  const exact = items.find(
+                    (i) => norm(i.code) === norm(addSearch)
+                  );
+                  const results = items
+                    .filter(
+                      (i) =>
+                        norm(i.code).includes(norm(addSearch)) ||
+                        (i.name || "").toLowerCase().includes(norm(addSearch))
+                    )
+                    .slice(0, 8);
+                  const pick = exact || results[0];
+                  if (pick && !selectedItemIds.includes(pick.id)) {
+                    setSelectedItemIds((prev) => [...prev, pick.id]);
+                    setAddSearch("");
+                  }
+                }
+              }}
+              placeholder="Vyhledej kód nebo název (Enter přidá)"
+              className="flex-1 px-3 py-2 rounded-md bg-slate-800 border border-slate-700 text-sm"
+            />
+            <button
+              type="button"
+              onClick={() => {
+                const norm = (s) =>
+                  (s || "")
+                    .replace(/\u2013|\u2014|\u2212|\u2010|\u2011/g, "-")
+                    .replace(/\u00A0/g, " ")
+                    .trim()
+                    .toLowerCase();
+                const exact = items.find(
+                  (i) => norm(i.code) === norm(addSearch)
+                );
+                const results = items
+                  .filter(
+                    (i) =>
+                      norm(i.code).includes(norm(addSearch)) ||
+                      (i.name || "").toLowerCase().includes(norm(addSearch))
+                  )
+                  .slice(0, 8);
+                const pick = exact || results[0];
+                if (pick && !selectedItemIds.includes(pick.id)) {
+                  setSelectedItemIds((prev) => [...prev, pick.id]);
+                  setAddSearch("");
+                }
+              }}
+              className="px-3 py-2 rounded-md bg-blue-500 hover:bg-blue-600 text-sm font-medium"
+            >
+              Přidat
+            </button>
           </div>
-          <select
-            multiple
-            value={selectedItemIds.map(String)}
-            onChange={(e) =>
-              setSelectedItemIds(
-                Array.from(e.target.selectedOptions).map((o) => Number(o.value))
-              )
-            }
-            className="col-span-1 md:col-span-2 min-h-[140px] px-3 py-2 rounded-md bg-slate-800 border border-slate-700 text-sm w-full"
-          >
-            {items.map((i) => (
-              <option key={i.id} value={i.id}>
-                {i.code} — {i.name}
-              </option>
-            ))}
-          </select>
+          {addSearch && (
+            <div className="rounded-md border border-slate-800 bg-slate-900/50">
+              <ul className="max-h-44 overflow-auto text-sm">
+                {items
+                  .filter(
+                    (i) =>
+                      (i.code || "")
+                        .replace(/\u2013|\u2014|\u2212|\u2010|\u2011/g, "-")
+                        .toLowerCase()
+                        .includes(
+                          addSearch
+                            .replace(/\u2013|\u2014|\u2212|\u2010|\u2011/g, "-")
+                            .toLowerCase()
+                        ) ||
+                      (i.name || "")
+                        .toLowerCase()
+                        .includes(addSearch.toLowerCase())
+                  )
+                  .slice(0, 8)
+                  .map((i) => (
+                    <li key={i.id}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!selectedItemIds.includes(i.id)) {
+                            setSelectedItemIds((prev) => [...prev, i.id]);
+                          }
+                          setAddSearch("");
+                        }}
+                        className="w-full text-left px-3 py-2 hover:bg-slate-800"
+                      >
+                        <span className="font-mono text-slate-200">{i.code}</span>{" "}
+                        <span className="text-slate-400">— {i.name}</span>
+                      </button>
+                    </li>
+                  ))}
+              </ul>
+            </div>
+          )}
+          {selectedItemIds.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {selectedItemIds.map((id) => {
+                const it = items.find((x) => x.id === id);
+                return (
+                  <span
+                    key={id}
+                    className="inline-flex items-center gap-2 px-2 py-1 rounded-full bg-slate-800 border border-slate-700 text-xs"
+                  >
+                    <span className="font-mono">{it?.code || `#${id}`}</span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setSelectedItemIds((prev) => prev.filter((x) => x !== id))
+                      }
+                      className="text-slate-400 hover:text-white"
+                      aria-label="Odebrat"
+                    >
+                      ×
+                    </button>
+                  </span>
+                );
+              })}
+            </div>
+          )}
+          <div className="space-y-2 p-3 rounded-lg border border-slate-800 bg-slate-900">
+            <div className="text-sm text-slate-300">Vložit více kódů (volitelné)</div>
+            <textarea
+              value={bulkCodesDraft}
+              onChange={(e) => setBulkCodesDraft(e.target.value)}
+              placeholder={"1 kód na řádek nebo oddělit čárkou/mezery\nnapř. TV-001\nCAM-002\nCABLE-001"}
+              className="w-full min-h-[80px] px-3 py-2 rounded-md bg-slate-800 border border-slate-700 text-sm"
+            />
+            <div>
+              <button
+                type="button"
+                onClick={() => {
+                  const normalize = (s) =>
+                    (s || "")
+                      .replace(/\u2013|\u2014|\u2212|\u2010|\u2011/g, "-")
+                      .replace(/\u00A0/g, " ")
+                      .trim()
+                      .toLowerCase();
+                  const codes = Array.from(
+                    new Set(
+                      (bulkCodesDraft || "")
+                        .split(/[\s,;]+/g)
+                        .map((s) => normalize(s))
+                        .filter(Boolean)
+                    )
+                  );
+                  const ids = codes
+                    .map(
+                      (c) =>
+                        items.find(
+                          (i) =>
+                            normalize(i.code) === c ||
+                            (i.name || "").toLowerCase() === c
+                        )?.id
+                    )
+                    .filter(Boolean);
+                  if (ids.length === 0) {
+                    alert("Nenašly se žádné odpovídající položky.");
+                    return;
+                  }
+                  setSelectedItemIds((prev) =>
+                    Array.from(new Set([...prev, ...ids]))
+                  );
+                  setBulkCodesDraft("");
+                }}
+                className="px-3 py-2 rounded-md bg-indigo-500 hover:bg-indigo-600 text-sm font-medium"
+              >
+                Přidat kódy do výběru
+              </button>
+            </div>
+          </div>
         </div>
 
         <button
