@@ -196,6 +196,18 @@ def health():
 def create_item(item_in: ItemCreate, db: Session = Depends(get_db)):
     existing = db.query(Item).filter(Item.code == item_in.code).first()
     if existing:
+        # Pokud existuje archivovaná položka se stejným kódem, obnovíme ji a zaktualizujeme údaje
+        if hasattr(existing, "is_active") and existing.is_active is False:
+            existing.name = item_in.name
+            existing.category = item_in.category
+            existing.manufacturer = item_in.manufacturer
+            existing.serial_number = item_in.serial_number
+            existing.location = item_in.location
+            existing.condition_note = item_in.condition_note
+            existing.is_active = True
+            db.commit()
+            db.refresh(existing)
+            return existing
         raise HTTPException(status_code=400, detail="Položka s tímto kódem už existuje.")
 
     item = Item(
@@ -579,16 +591,18 @@ def close_order(order_id: int, db: Session = Depends(get_db)):
     if order.status == OrderStatus.CLOSED:
         raise HTTPException(status_code=400, detail="Zakázka je již uzavřená.")
 
-    open_loans = (
+    # Automatiky ukončíme všechny aktivní výpůjčky patřící do zakázky
+    active_loans = (
         db.query(Loan)
         .filter(Loan.order_id == order.id, Loan.date_in.is_(None))
-        .count()
+        .all()
     )
-    if open_loans > 0:
-        raise HTTPException(
-            status_code=400,
-            detail="Zakázku nelze uzavřít, dokud má aktivní výpůjčky.",
-        )
+    if active_loans:
+        now = datetime.utcnow()
+        for loan in active_loans:
+            loan.date_in = now
+            # nepovinné: nenastavujeme received_by ani condition_in
+        db.flush()
 
     order.status = OrderStatus.CLOSED
     order.date_closed = datetime.utcnow()

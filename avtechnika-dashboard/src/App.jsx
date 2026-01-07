@@ -827,7 +827,6 @@ function OrdersView() {
   });
   const [selectedItemIds, setSelectedItemIds] = useState([]);
   const [addSearch, setAddSearch] = useState("");
-  const [bulkCodesDraft, setBulkCodesDraft] = useState("");
 
   const loadAll = async () => {
     const [ordersRes, custRes, itemsRes] = await Promise.all([
@@ -1256,57 +1255,6 @@ function OrdersView() {
               })}
             </div>
           )}
-          <div className="space-y-2 p-3 rounded-lg border border-slate-800 bg-slate-900">
-            <div className="text-sm text-slate-300">Vložit více kódů (volitelné)</div>
-            <textarea
-              value={bulkCodesDraft}
-              onChange={(e) => setBulkCodesDraft(e.target.value)}
-              placeholder={"1 kód na řádek nebo oddělit čárkou/mezery\nnapř. TV-001\nCAM-002\nCABLE-001"}
-              className="w-full min-h-[80px] px-3 py-2 rounded-md bg-slate-800 border border-slate-700 text-sm"
-            />
-            <div>
-              <button
-                type="button"
-                onClick={() => {
-                  const normalize = (s) =>
-                    (s || "")
-                      .replace(/\u2013|\u2014|\u2212|\u2010|\u2011/g, "-")
-                      .replace(/\u00A0/g, " ")
-                      .trim()
-                      .toLowerCase();
-                  const codes = Array.from(
-                    new Set(
-                      (bulkCodesDraft || "")
-                        .split(/[\s,;]+/g)
-                        .map((s) => normalize(s))
-                        .filter(Boolean)
-                    )
-                  );
-                  const ids = codes
-                    .map(
-                      (c) =>
-                        items.find(
-                          (i) =>
-                            normalize(i.code) === c ||
-                            (i.name || "").toLowerCase() === c
-                        )?.id
-                    )
-                    .filter(Boolean);
-                  if (ids.length === 0) {
-                    alert("Nenašly se žádné odpovídající položky.");
-                    return;
-                  }
-                  setSelectedItemIds((prev) =>
-                    Array.from(new Set([...prev, ...ids]))
-                  );
-                  setBulkCodesDraft("");
-                }}
-                className="px-3 py-2 rounded-md bg-indigo-500 hover:bg-indigo-600 text-sm font-medium"
-              >
-                Přidat kódy do výběru
-              </button>
-            </div>
-          </div>
         </div>
 
         <button
