@@ -820,6 +820,7 @@ function OrdersView() {
   const [form, setForm] = useState({
     customer_id: "",
     date_due: "",
+    date_out: "",
     event_name: "",
     event_location: "",
     note: "",
@@ -852,6 +853,7 @@ function OrdersView() {
     const payload = {
       customer_id: Number(form.customer_id),
       date_due: form.date_due ? form.date_due + "T00:00:00" : null,
+      date_out: form.date_out ? form.date_out + "T00:00:00" : null,
       event_name: form.event_name,
       event_location: form.event_location,
       note: form.note,
@@ -901,6 +903,7 @@ function OrdersView() {
       setForm({
         customer_id: "",
         date_due: "",
+        date_out: "",
         event_name: "",
         event_location: "",
         note: "",
@@ -1089,6 +1092,14 @@ function OrdersView() {
           ))}
         </select>
 
+        <input
+          type="date"
+          name="date_out"
+          value={form.date_out}
+          onChange={handleChange}
+          required
+          className="px-3 py-2 rounded-md bg-slate-800 border border-slate-700 text-sm"
+        />
         <input
           type="date"
           name="date_due"
@@ -1312,7 +1323,7 @@ function OrdersView() {
             <tr>
               <Th>ID</Th>
               <Th>Zákazník</Th>
-              <Th>Vytvořeno</Th>
+              <Th>Od</Th>
               <Th>Do</Th>
               <Th>Akce</Th>
               <Th>Status</Th>
@@ -1331,7 +1342,7 @@ function OrdersView() {
                     </button>
                   </Td>
                   <Td>{getCustomerName(o.customer_id)}</Td>
-                  <Td>{formatDateTime(o.created_at)}</Td>
+                  <Td>{formatDateTime(o.date_out)}</Td>
                   <Td>{formatDateTime(o.date_due)}</Td>
                   <Td>
                     <div className="space-y-1">

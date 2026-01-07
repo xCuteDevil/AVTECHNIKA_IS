@@ -150,6 +150,7 @@ class LoanOut(BaseModel):
 class OrderBase(BaseModel):
     customer_id: int
     date_due: datetime
+    date_out: Optional[datetime] = None
     event_name: Optional[str] = None
     event_location: Optional[str] = None
     note: Optional[str] = None
@@ -477,6 +478,7 @@ def create_order(order_in: OrderCreate, db: Session = Depends(get_db)):
         code=order_in.code,
         customer_id=order_in.customer_id,
         date_due=order_in.date_due,
+        date_out=order_in.date_out or datetime.utcnow(),
         event_name=order_in.event_name,
         event_location=order_in.event_location,
         note=order_in.note,
