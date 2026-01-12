@@ -1,5 +1,5 @@
 // src/App.jsx
-import { useEffect, useState, Fragment, useRef } from "react";
+import { useEffect, useState, Fragment, useRef, Component } from "react";
 import { flushSync } from "react-dom";
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode";
 
@@ -7,47 +7,85 @@ const API_BASE =
   import.meta.env.VITE_API_BASE ||
   `${window.location.protocol}//${window.location.hostname}:8000`;
 
+class ErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error, info) {
+    try {
+      // eslint-disable-next-line no-console
+      console.error("Uncaught UI error:", error, info);
+    } catch {}
+  }
+  render() {
+    if (this.state.hasError) {
+      const msg = this.state.error?.message || String(this.state.error || "Unknown error");
+      return (
+        <div className="min-h-screen bg-slate-900 text-slate-50 p-4">
+          <div className="max-w-3xl mx-auto">
+            <h1 className="text-xl font-semibold mb-2">Došlo k chybě v aplikaci</h1>
+            <div className="text-sm text-slate-300 mb-3">{msg}</div>
+            <button
+              className="px-3 py-2 rounded-md bg-blue-500 hover:bg-blue-600 text-sm font-medium"
+              onClick={() => window.location.reload()}
+            >
+              Zkusit znovu načíst
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 function App() {
   const [tab, setTab] = useState("items");
 
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-50">
-      <div className="max-w-6xl mx-auto px-4 py-8">
-        <header className="mb-8">
-          <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-4">
-            AV Technika – IS výpůjček
-          </h1>
+    <ErrorBoundary>
+      <div className="min-h-screen bg-slate-900 text-slate-50">
+        <div className="max-w-6xl mx-auto px-4 py-8">
+          <header className="mb-8">
+            <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-4">
+              AV Technika – IS výpůjček
+            </h1>
 
-          <nav className="flex flex-wrap gap-3 mt-4">
-            <TabButton active={tab === "items"} onClick={() => setTab("items")}>
-              Technika
-            </TabButton>
-            <TabButton
-              active={tab === "customers"}
-              onClick={() => setTab("customers")}
-            >
-              Zákazníci
-            </TabButton>
-            <TabButton active={tab === "loans"} onClick={() => setTab("loans")}>
-              Výpůjčky
-            </TabButton>
-            <TabButton
-              active={tab === "orders"}
-              onClick={() => setTab("orders")}
-            >
-              Zakázky
-            </TabButton>
-          </nav>
+            <nav className="flex flex-wrap gap-3 mt-4">
+              <TabButton active={tab === "items"} onClick={() => setTab("items")}>
+                Technika
+              </TabButton>
+              <TabButton
+                active={tab === "customers"}
+                onClick={() => setTab("customers")}
+              >
+                Zákazníci
+              </TabButton>
+              <TabButton active={tab === "loans"} onClick={() => setTab("loans")}>
+                Výpůjčky
+              </TabButton>
+              <TabButton
+                active={tab === "orders"}
+                onClick={() => setTab("orders")}
+              >
+                Zakázky
+              </TabButton>
+            </nav>
 
-          <div className="border-b border-slate-700 mt-6" />
-        </header>
+            <div className="border-b border-slate-700 mt-6" />
+          </header>
 
-        {tab === "items" && <ItemsView />}
-        {tab === "customers" && <CustomersView />}
-        {tab === "loans" && <LoansView />}
-        {tab === "orders" && <OrdersView />}
+          {tab === "items" && <ItemsView />}
+          {tab === "customers" && <CustomersView />}
+          {tab === "loans" && <LoansView />}
+          {tab === "orders" && <OrdersView />}
+        </div>
       </div>
-    </div>
+    </ErrorBoundary>
   );
 }
 
@@ -817,6 +855,7 @@ function OrdersView() {
   const [scanInputs, setScanInputs] = useState({});
   const [scanOrderId, setScanOrderId] = useState(null);
   const qrRef = useRef(null);
+  const [scanInfo, setScanInfo] = useState("");
   const [form, setForm] = useState({
     customer_id: "",
     date_due: "",
@@ -864,6 +903,8 @@ function OrdersView() {
     });
     if (res.ok) {
       const createdOrder = await res.json();
+      // Po vytvoření rovnou rozbalíme detail a na mobilech otevřeme čtečku
+      setExpandedOrder(createdOrder.id);
 
       // pokud jsou vybrané položky, založíme k nim výpůjčky v rámci zakázky
       let createdLoans = 0;
@@ -908,7 +949,9 @@ function OrdersView() {
         note: "",
       });
       setSelectedItemIds([]);
-      loadAll();
+      await loadAll();
+      // Po načtení seznamu spustíme čtečku pro nově vytvořenou zakázku (pokud je otevřená)
+      setScanOrderId(createdOrder.id);
       if (selectedItemIds.length > 0) {
         const details =
           failedLoans
@@ -979,31 +1022,79 @@ function OrdersView() {
     }
   };
 
+  const safeStopScanner = async () => {
+    const cam = qrRef.current;
+    if (!cam) return;
+    try {
+      const state = typeof cam.getState === "function" ? cam.getState() : null;
+      // 2 = SCANNING, 1 = PAUSED (html5-qrcode internals)
+      if (state === 2 || state === 1) {
+        await cam.stop().catch(() => {});
+      }
+      await cam.clear().catch(() => {});
+    } catch (e) {
+      console.warn("safeStopScanner:", e);
+    } finally {
+      qrRef.current = null;
+    }
+  };
+
   const handleScanInputChange = (orderId, value) => {
     setScanInputs((prev) => ({ ...prev, [orderId]: value }));
+  };
+
+  const parseCodeFromScan = (text) => {
+    const raw = (text ?? "").trim();
+    if (!raw) return "";
+    try {
+      const obj = JSON.parse(raw);
+      if (obj && typeof obj === "object" && obj.code) return String(obj.code).trim();
+    } catch {}
+    // try to find `code=...` or `code: ...` in a tolerant way
+    const ci = raw.toLowerCase().indexOf("code");
+    if (ci >= 0) {
+      const tail = raw.slice(ci);
+      const m2 = tail.match(/^code\s*[:=]\s*["']?([A-Za-z0-9._-]+)/i);
+      if (m2 && m2[1]) return m2[1];
+    }
+    // URL form → extract last path segment (without extension)
+    if (/^https?:\/\//i.test(raw)) {
+      const last = raw.split(/[\/\\]/).pop() || "";
+      return last.replace(/\.[a-z0-9]+$/i, "").trim();
+    }
+    // Relative path like /qr/TV-001.png → take filename without extension
+    if (raw.includes("/") && /\.[a-z0-9]+$/i.test(raw)) {
+      const last = raw.split(/[\/\\]/).pop() || "";
+      return last.replace(/\.[a-z0-9]+$/i, "").trim();
+    }
+    if (raw.includes("|")) return raw.split("|")[0].trim();
+    if (raw.includes(",")) return raw.split(",")[0].trim();
+    return (raw.replace(/[^\w-]/g, " ").trim().split(/\s+/)[0] || "");
   };
 
   const handleAddByCode = async (orderId, codeOverride) => {
     const order = orders.find((x) => x.id === orderId);
     if (!order) {
-      alert("Zakázka nenalezena.");
+      setScanInfo("Zakázka nenalezena.");
       return;
     }
     if (order.status !== "OPEN") {
-      alert("Zakázka není otevřená, nelze přidat položku.");
+      setScanInfo("Zakázka není otevřená, nelze přidat položku.");
       return;
     }
 
-    const code =
-      (codeOverride !== undefined
-        ? codeOverride
-        : scanInputs[order.id] || ""
-      ).trim();
+    let code = codeOverride !== undefined ? parseCodeFromScan(codeOverride) : (scanInputs[order.id] || "").trim();
+    if (code) {
+      // normalize fancy dashes / NBSP coming from printed QR
+      code = code.replace(/[\u2013\u2116\u2014\u2212\u2010\u2011]/g, "-").replace(/\u00A0/g, "").trim();
+    }
     if (!code) {
-      alert("Zadej nebo naskenuj kód položky.");
+      setScanInfo("Zadej nebo naskenuj kód položky.");
       return;
     }
 
+    console.debug("Adding by code:", { orderId, raw: codeOverride, parsed: code });
+    setScanInfo(`Přidávám: ${code}`);
     const res = await fetch(
       `${API_BASE}/orders/${order.id}/add_item_by_code`,
       {
@@ -1013,12 +1104,21 @@ function OrdersView() {
       }
     );
     if (res.ok) {
+      console.debug("Add by code OK");
+      setScanInfo(`Přidáno: ${code}`);
       setScanInputs((prev) => ({ ...prev, [order.id]: "" }));
       await loadOrderLoans(order.id);
       await loadAll();
     } else {
-      const err = await res.json();
-      alert("Chyba při přidání: " + err.detail);
+      let msg = `HTTP ${res.status}`;
+      try {
+        const err = await res.json();
+        if (err && err.detail) msg = err.detail;
+      } catch (e) {
+        // keep default msg
+      }
+      console.warn("Add by code failed:", msg);
+      setScanInfo(`Chyba při přidání: ${msg}`);
     }
   };
 
@@ -1036,23 +1136,74 @@ function OrdersView() {
       }
 
       const elId = `qr-reader-${scanOrderId}`;
-      const html5QrCode = new Html5Qrcode(elId);
+      // základní ověření prostředí
+      if (!navigator.mediaDevices?.getUserMedia || !window.isSecureContext) {
+        setScanInfo("Kamera není dostupná (potřebuje HTTPS a oprávnění).");
+        return;
+      }
+
+      setScanInfo("Spouštím čtečku…");
+      const mount = document.getElementById(elId);
+      if (!mount) {
+        setScanInfo("Nelze spustit čtečku – chybí cílový element.");
+        setScanOrderId(null);
+        return;
+      }
+      const html5QrCode = new Html5Qrcode(elId, { verbose: true });
       qrRef.current = html5QrCode;
 
       html5QrCode
         .start(
           { facingMode: "environment" },
-          { fps: 10, qrbox: { width: 240, height: 240 } },
-          async (decodedText) => {
-            await handleAddByCode(scanOrderId, decodedText);
-            setScanOrderId(null);
+          {
+            fps: 10,
+            qrbox: { width: 240, height: 240 },
+            aspectRatio: 1.0,
+            formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
+            experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+          },
+          async (decodedText /* , decodedResult */) => {
+            const currentOrderId = scanOrderId;
+            const value = (decodedText ?? "").toString();
+            try {
+              // zobraz informaci synchronně, než sáhneme na kameru
+              flushSync(() => {
+                setScanInfo(`Načteno: ${parseCodeFromScan(value) || value}`);
+              });
+            } catch {}
+            // viz iOS workaround v ItemsView: nejprve nechat projít render,
+            // až poté bezpečně zastavit a vyčistit kameru
+            await new Promise((resolve) =>
+              requestAnimationFrame(() => resolve())
+            );
+            setTimeout(async () => {
+              try {
+                await safeStopScanner();
+              } catch {}
+              // zavřít UI skeneru
+              setScanOrderId(null);
+              // teprve teď zkusit přidat položku
+              try {
+                if (currentOrderId != null) {
+                  await handleAddByCode(currentOrderId, value);
+                } else {
+                  console.warn("QR decoded but orderId is null, skipping add.");
+                }
+              } catch (e) {
+                console.error("QR success handler error:", e);
+                setScanInfo("Chyba při zpracování QR kódu.");
+              }
+            }, 30);
+          },
+          // průběžné chybové callbacky při snaze detekovat QR
+          (scanErr) => {
+            // neděsit uživatele – jen informace, že čtečka běží
+            setScanInfo("Čtečka běží, namiř blíž na QR kód…");
           }
         )
         .catch((err) => {
           console.error("QR start error", err);
-          alert(
-            "Nepodařilo se spustit čtečku. Zkontroluj oprávnění ke kameře."
-          );
+          setScanInfo("Start čtečky selhal – zkontroluj HTTPS a oprávnění ke kameře.");
           setScanOrderId(null);
         });
     };
@@ -1060,11 +1211,7 @@ function OrdersView() {
     startScanner();
 
     return () => {
-      if (qrRef.current) {
-        qrRef.current.stop().catch(() => {});
-        qrRef.current.clear().catch(() => {});
-        qrRef.current = null;
-      }
+      safeStopScanner();
     };
   }, [scanOrderId, orders]);
 
@@ -1128,7 +1275,7 @@ function OrdersView() {
         <div className="w-full grid grid-cols-1 gap-3 mt-2">
           <div className="text-sm text-slate-300">Přidat techniku do zakázky</div>
           <div className="flex gap-2 items-center">
-            <input
+        <input
               value={addSearch}
               onChange={(e) => setAddSearch(e.target.value)}
               onKeyDown={(e) => {
@@ -1295,12 +1442,23 @@ function OrdersView() {
                   <Td>
                     <div className="space-y-1">
                       {o.status === "OPEN" ? (
+                        <>
                         <button
                           onClick={() => handleClose(o.id)}
-                          className="px-3 py-1 rounded-md bg-emerald-500 hover:bg-emerald-600 text-xs font-medium"
+                            className="w-full px-3 py-1 rounded-md bg-emerald-500 hover:bg-emerald-600 text-xs font-medium"
                         >
                           Uzavřít zakázku
                         </button>
+                          <button
+                            onClick={() => {
+                              setExpandedOrder(o.id);
+                              setScanOrderId(o.id);
+                            }}
+                            className="w-full px-3 py-1 rounded-md bg-indigo-500 hover:bg-indigo-600 text-xs font-medium"
+                          >
+                            Skenovat (QR) – přidat položky
+                          </button>
+                        </>
                       ) : (
                         <span className="text-xs text-slate-400">(nelze)</span>
                       )}
@@ -1374,11 +1532,15 @@ function OrdersView() {
                             <div
                               id={`qr-reader-${o.id}`}
                               className="w-full max-w-xs mx-auto"
+                              style={{ minHeight: 260 }}
                             />
                             <div className="text-center text-xs text-slate-400 mt-2">
                               Namíř kameru na QR kód položky.
                             </div>
                           </div>
+                        )}
+                        {scanInfo && (
+                          <div className="text-sm text-slate-300">{scanInfo}</div>
                         )}
 
                         <div className="overflow-x-auto rounded-lg border border-slate-800">

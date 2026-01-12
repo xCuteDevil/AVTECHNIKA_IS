@@ -4,6 +4,7 @@ from pydantic import BaseModel, ConfigDict
 from typing import List, Optional
 
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from fastapi.middleware.cors import CORSMiddleware
 
 
@@ -164,6 +165,30 @@ class OrderAddItem(BaseModel):
     item_code: str
     condition_out: Optional[str] = None
     note: Optional[str] = None
+
+# --- Normalization helpers for item codes (handle fancy dashes, trim, lowercase) ---
+_DASHES = ("\u2013", "\u2014", "\u2212", "\u2010", "\u2011")  # en dash, em dash, minus, hyphen, non‑breaking hyphen
+
+def _normalize_code_py(s: Optional[str]) -> str:
+    if not s:
+        return ""
+    out = s.strip()
+    for ch in _DASHES:
+        out = out.replace(ch, "-")
+    # normalize non‑breaking space
+    out = out.replace("\u00A0", "")
+    return out.lower()
+
+def _normalize_code_sql(col):
+    """SQLAlchemy expression that mimics _normalize_code_py for DB-side compare."""
+    expr = func.lower(col)
+    for ch in _DASHES:
+        expr = func.replace(expr, ch, "-")
+    # remove NBSP characters
+    expr = func.replace(expr, "\u00A0", "")
+    # trim outer whitespace
+    expr = func.trim(expr)
+    return expr
 
 
 class OrderOut(BaseModel):
@@ -529,9 +554,31 @@ def add_item_to_order(
     if order.status == OrderStatus.CLOSED:
         raise HTTPException(status_code=400, detail="Zakázka je uzavřená.")
 
-    item = db.query(Item).filter(Item.code == payload.item_code).first()
+    # match by normalized code to tolerate different dash/whitespace variants
+    norm = _normalize_code_py(payload.item_code)
+    item = db.query(Item).filter(_normalize_code_sql(Item.code) == norm).first()
     if not item:
-        raise HTTPException(status_code=404, detail="Položka s tímto kódem nenalezena.")
+        # Pokud položka s tímto kódem (po normalizaci) neexistuje, založíme ji „za běhu“
+        cleaned = payload.item_code or ""
+        for ch in _DASHES:
+            cleaned = cleaned.replace(ch, "-")
+        cleaned = cleaned.replace("\u00A0", "").strip()
+        if not cleaned:
+            raise HTTPException(status_code=400, detail="Prázdný kód položky.")
+        # Zkusíme ještě jednou, kdyby existovala pod přesně tímto cleaned kódem
+        item = db.query(Item).filter(Item.code == cleaned).first()
+        if not item:
+            item = Item(
+                code=cleaned,
+                name=cleaned,
+                category=None,
+                manufacturer=None,
+                serial_number=None,
+                location=None,
+                condition_note=None,
+            )
+            db.add(item)
+            db.flush()  # získáme id
 
     # ověřit, že položka není aktivně vypůjčená
     existing = (

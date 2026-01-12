@@ -19,6 +19,15 @@ kill_port() {
   if [[ -n "${pids:-}" ]]; then
     echo "Killing processes on port $port: $pids"
     kill $pids 2>/dev/null || true
+    # brief wait; if still listening, force kill
+    sleep 0.2
+    local still
+    still=$(lsof -tiTCP:$port -sTCP:LISTEN 2>/dev/null || true)
+    if [[ -n "${still:-}" ]]; then
+      echo "Force killing on port $port: $still"
+      kill -9 $still 2>/dev/null || true
+      sleep 0.1
+    fi
   fi
 }
 
@@ -63,7 +72,11 @@ start_frontend() {
   echo "Starting frontend (Vite) on :$FRONTEND_PORT (HTTPS=$VITE_DEV_HTTPS, API_BASE=$FRONTEND_API_BASE)"
   (
     cd "$ROOT/avtechnika-dashboard"
-    VITE_DEV_HTTPS="$VITE_DEV_HTTPS" VITE_API_BASE="$FRONTEND_API_BASE" npm run dev -- --host \
+    VITE_DEV_HTTPS="$VITE_DEV_HTTPS" \
+    VITE_API_BASE="$FRONTEND_API_BASE" \
+    VITE_SSL_CERT="${VITE_SSL_CERT:-}" \
+    VITE_SSL_KEY="${VITE_SSL_KEY:-}" \
+    npm run dev -- --host \
       > "$ROOT/logs/frontend.log" 2>&1 &
     echo $! > "$ROOT/.pids/frontend.pid"
   )
