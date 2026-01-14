@@ -974,6 +974,10 @@ function OrdersView() {
     customers.find((c) => c.id === id)?.name || `#${id}`;
   const getItemName = (id) =>
     items.find((i) => i.id === id)?.name || `#${id}`;
+  const getItemCode = (id) =>
+    items.find((i) => i.id === id)?.code || `#${id}`;
+  const getItemCategory = (id) =>
+    items.find((i) => i.id === id)?.category || "-";
 
   const formatDateTime = (s) =>
     s ? new Date(s).toLocaleString("cs-CZ") : "-";
@@ -1000,6 +1004,24 @@ function OrdersView() {
     } else {
       const err = await res.json();
       alert("Chyba při uzavření: " + err.detail);
+    }
+  };
+
+  const handleDeleteLoan = async (loanId) => {
+    if (!confirm("Odebrat tuto položku ze zakázky?")) return;
+    const res = await fetch(`${API_BASE}/loans/${loanId}`, { method: "DELETE" });
+    if (res.status === 204) {
+      if (expandedOrder != null) {
+        await loadOrderLoans(expandedOrder);
+      }
+      await loadAll();
+    } else {
+      try {
+        const err = await res.json();
+        alert("Odstranění selhalo: " + (err.detail || res.statusText));
+      } catch {
+        alert("Odstranění selhalo.");
+      }
     }
   };
 
@@ -1547,11 +1569,10 @@ function OrdersView() {
                           <table className="min-w-full text-sm">
                             <thead className="bg-slate-800/70">
                               <tr>
-                                <Th>ID výpůjčky</Th>
-                                <Th>Položka</Th>
-                                <Th>Od</Th>
-                                <Th>Do</Th>
-                                <Th>Vráceno</Th>
+                                <Th>Kód</Th>
+                                <Th>Název</Th>
+                                <Th>Kategorie</Th>
+                                <Th>Akce</Th>
                               </tr>
                             </thead>
                             <tbody>
@@ -1560,17 +1581,27 @@ function OrdersView() {
                                   key={l.id}
                                   className="border-t border-slate-800"
                                 >
-                                  <Td>{l.id}</Td>
+                                  <Td className="font-mono">{getItemCode(l.item_id)}</Td>
                                   <Td>{getItemName(l.item_id)}</Td>
-                                  <Td>{formatDateTime(l.date_out)}</Td>
-                                  <Td>{formatDateTime(l.date_due)}</Td>
-                                  <Td>{formatDateTime(l.date_in)}</Td>
+                                  <Td>{getItemCategory(l.item_id)}</Td>
+                                  <Td>
+                                    {o.status === "OPEN" ? (
+                                      <button
+                                        onClick={() => handleDeleteLoan(l.id)}
+                                        className="px-3 py-1 rounded-md bg-rose-600 hover:bg-rose-700 text-xs font-medium"
+                                      >
+                                        Odstranit
+                                      </button>
+                                    ) : (
+                                      <span className="text-xs text-slate-400">(nelze)</span>
+                                    )}
+                                  </Td>
                                 </tr>
                               ))}
                               {(orderLoans[o.id] || []).length === 0 && (
                                 <tr>
                                   <Td
-                                    colSpan={5}
+                                    colSpan={4}
                                     className="text-center text-slate-400 py-4"
                                   >
                                     Zatím žádné položky v zakázce.

@@ -503,6 +503,15 @@ def return_loan(
     return loan
 
 
+@app.delete("/loans/{loan_id}", status_code=204)
+def delete_loan(loan_id: int, db: Session = Depends(get_db)):
+    loan = db.query(Loan).get(loan_id)
+    if not loan:
+        raise HTTPException(status_code=404, detail="Výpůjčka nenalezena.")
+    db.delete(loan)
+    db.commit()
+    return None
+
 # ---------- ORDERS endpointy ----------
 
 @app.post("/orders", response_model=OrderOut)
