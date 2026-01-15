@@ -273,6 +273,18 @@ def list_items(include_inactive: bool = False, db: Session = Depends(get_db)):
         )
     return items
 
+@app.get("/items/{item_id}/loans", response_model=List[LoanOut])
+def list_item_loans(item_id: int, db: Session = Depends(get_db)):
+    item = db.query(Item).get(item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Položka nenalezena.")
+    loans = (
+        db.query(Loan)
+        .filter(Loan.item_id == item_id)
+        .order_by(Loan.date_out.desc())
+        .all()
+    )
+    return loans
 
 @app.delete("/items/{item_id}", status_code=204)
 def delete_item(item_id: int, db: Session = Depends(get_db)):

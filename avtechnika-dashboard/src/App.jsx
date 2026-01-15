@@ -48,43 +48,43 @@ function App() {
 
   return (
     <ErrorBoundary>
-      <div className="min-h-screen bg-slate-900 text-slate-50">
-        <div className="max-w-6xl mx-auto px-4 py-8">
-          <header className="mb-8">
-            <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-4">
-              AV Technika – IS výpůjček
-            </h1>
+    <div className="min-h-screen bg-slate-900 text-slate-50">
+      <div className="max-w-6xl mx-auto px-4 py-8">
+        <header className="mb-8">
+          <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-4">
+            AV Technika – IS výpůjček
+          </h1>
 
-            <nav className="flex flex-wrap gap-3 mt-4">
-              <TabButton active={tab === "items"} onClick={() => setTab("items")}>
-                Technika
-              </TabButton>
-              <TabButton
-                active={tab === "customers"}
-                onClick={() => setTab("customers")}
-              >
-                Zákazníci
-              </TabButton>
-              <TabButton active={tab === "loans"} onClick={() => setTab("loans")}>
-                Výpůjčky
-              </TabButton>
-              <TabButton
-                active={tab === "orders"}
-                onClick={() => setTab("orders")}
-              >
-                Zakázky
-              </TabButton>
-            </nav>
+          <nav className="flex flex-wrap gap-3 mt-4">
+            <TabButton active={tab === "items"} onClick={() => setTab("items")}>
+              Technika
+            </TabButton>
+            <TabButton
+              active={tab === "customers"}
+              onClick={() => setTab("customers")}
+            >
+              Zákazníci
+            </TabButton>
+            <TabButton active={tab === "loans"} onClick={() => setTab("loans")}>
+              Výpůjčky
+            </TabButton>
+            <TabButton
+              active={tab === "orders"}
+              onClick={() => setTab("orders")}
+            >
+              Zakázky
+            </TabButton>
+          </nav>
 
-            <div className="border-b border-slate-700 mt-6" />
-          </header>
+          <div className="border-b border-slate-700 mt-6" />
+        </header>
 
-          {tab === "items" && <ItemsView />}
-          {tab === "customers" && <CustomersView />}
-          {tab === "loans" && <LoansView />}
-          {tab === "orders" && <OrdersView />}
-        </div>
+        {tab === "items" && <ItemsView />}
+        {tab === "customers" && <CustomersView />}
+        {tab === "loans" && <LoansView />}
+        {tab === "orders" && <OrdersView />}
       </div>
+    </div>
     </ErrorBoundary>
   );
 }
@@ -109,6 +109,7 @@ function TabButton({ active, children, ...props }) {
 
 function ItemsView() {
   const [items, setItems] = useState([]);
+  const [customers, setCustomers] = useState([]);
   const [form, setForm] = useState({
     code: "",
     name: "",
@@ -125,6 +126,8 @@ function ItemsView() {
   const codeInputRef = useRef(null);
   const nameInputRef = useRef(null);
   const categoryInputRef = useRef(null);
+  const [historyFor, setHistoryFor] = useState(null);
+  const [histories, setHistories] = useState({});
 
   const parseItemFromQr = (text) => {
     const raw = (text ?? "").trim();
@@ -167,9 +170,25 @@ function ItemsView() {
     const data = await res.json();
     setItems(data);
   };
+  const loadCustomers = async () => {
+    const res = await fetch(`${API_BASE}/customers`);
+    setCustomers(await res.json());
+  };
+  const getCustomerName = (id) =>
+    customers.find((c) => c.id === id)?.name || `#${id}`;
+  const formatDateTime = (s) =>
+    s ? new Date(s).toLocaleString("cs-CZ") : "-";
+  const loadHistory = async (itemId) => {
+    const res = await fetch(`${API_BASE}/items/${itemId}/loans`);
+    if (res.ok) {
+      const data = await res.json();
+      setHistories((h) => ({ ...h, [itemId]: data }));
+    }
+  };
 
   useEffect(() => {
     loadItems();
+    loadCustomers();
   }, []);
 
   const handleChange = (e) => {
@@ -428,15 +447,15 @@ function ItemsView() {
           </thead>
           <tbody>
             {items.map((it) => (
-              <tr
-                key={it.id}
-                className="border-t border-slate-800 hover:bg-slate-800/40"
-              >
-                <Td>{it.id}</Td>
-                <Td className="font-mono">{it.code}</Td>
-                <Td>{it.name}</Td>
-                <Td>{it.category}</Td>
-              <Td>
+              <Fragment key={it.id}>
+                <tr
+                  className="border-t border-slate-800 hover:bg-slate-800/40"
+                >
+                  <Td>{it.id}</Td>
+                  <Td className="font-mono">{it.code}</Td>
+                  <Td>{it.name}</Td>
+                  <Td>{it.category}</Td>
+                <Td>
                 <div className="flex flex-wrap gap-1">
                   {(it.accessories || []).map((a) => (
                     <span
@@ -473,55 +492,108 @@ function ItemsView() {
                     + přidat
                   </button>
                 </div>
-              </Td>
-                <Td>
-                  <button
-                    onClick={() => startEdit(it)}
-                    className="px-3 py-1 rounded-md bg-amber-500 hover:bg-amber-600 text-xs font-medium"
-                  >
-                    Upravit
-                  </button>
-                  <button
-                    onClick={async () => {
-                      if (!confirm("Opravdu smazat tuto položku?")) return;
-                      const res = await fetch(`${API_BASE}/items/${it.id}`, { method: "DELETE" });
-                      if (res.status === 204) {
-                        if (editId === it.id) cancelEdit();
-                        loadItems();
-                      } else {
-                        try {
-                          const err = await res.json();
-                          const msg = String(err.detail || res.statusText || "");
-                          if (msg.includes("nelze smazat") || msg.includes("existují výpůjčky")) {
-                            if (confirm("Nelze smazat – existují výpůjčky. Chceš položku archivovat?")) {
-                              const a = await fetch(`${API_BASE}/items/${it.id}/archive`, { method: "PATCH" });
-                              if (a.ok) {
-                                if (editId === it.id) cancelEdit();
-                                loadItems();
-                                return;
-                              } else {
-                                try {
-                                  const e2 = await a.json();
-                                  alert("Archivace selhala: " + (e2.detail || a.statusText));
-                                } catch {
-                                  alert("Archivace selhala.");
+                </Td>
+                  <Td>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      onClick={async () => {
+                        const next = historyFor === it.id ? null : it.id;
+                        setHistoryFor(next);
+                        if (next && !histories[it.id]) {
+                          await loadHistory(it.id);
+                        }
+                      }}
+                      className="px-3 py-1 rounded-md bg-slate-700 hover:bg-slate-600 text-xs font-medium"
+                    >
+                      Historie
+                    </button>
+                    <button
+                      onClick={() => startEdit(it)}
+                      className="px-3 py-1 rounded-md bg-amber-500 hover:bg-amber-600 text-xs font-medium"
+                    >
+                      Upravit
+                    </button>
+                    <button
+                      onClick={async () => {
+                        if (!confirm("Opravdu smazat tuto položku?")) return;
+                        const res = await fetch(`${API_BASE}/items/${it.id}`, { method: "DELETE" });
+                        if (res.status === 204) {
+                          if (editId === it.id) cancelEdit();
+                          loadItems();
+                        } else {
+                          try {
+                            const err = await res.json();
+                            const msg = String(err.detail || res.statusText || "");
+                            if (msg.includes("nelze smazat") || msg.includes("existují výpůjčky")) {
+                              if (confirm("Nelze smazat – existují výpůjčky. Chceš položku archivovat?")) {
+                                const a = await fetch(`${API_BASE}/items/${it.id}/archive`, { method: "PATCH" });
+                                if (a.ok) {
+                                  if (editId === it.id) cancelEdit();
+                                  loadItems();
+                                  return;
+                                } else {
+                                  try {
+                                    const e2 = await a.json();
+                                    alert("Archivace selhala: " + (e2.detail || a.statusText));
+                                  } catch {
+                                    alert("Archivace selhala.");
+                                  }
+                                  return;
                                 }
-                                return;
                               }
                             }
+                            alert("Chyba při mazání: " + msg);
+                          } catch {
+                            alert("Chyba při mazání.");
                           }
-                          alert("Chyba při mazání: " + msg);
-                        } catch {
-                          alert("Chyba při mazání.");
                         }
-                      }
-                    }}
-                    className="ml-2 px-3 py-1 rounded-md bg-rose-600 hover:bg-rose-700 text-xs font-medium"
-                  >
-                    Smazat
-                  </button>
-                </Td>
-              </tr>
+                      }}
+                      className="px-3 py-1 rounded-md bg-rose-600 hover:bg-rose-700 text-xs font-medium"
+                    >
+                      Smazat
+                    </button>
+                  </div>
+                  </Td>
+                </tr>
+                {historyFor === it.id && (
+                  <tr className="bg-slate-900/50">
+                    <Td colSpan={6}>
+                      <div className="text-xs text-slate-300 mb-2">Historie výpůjček</div>
+                      <div className="overflow-x-auto rounded-md border border-slate-800">
+                        <table className="min-w-full text-xs">
+                          <thead className="bg-slate-800/70">
+                            <tr>
+                              <Th>ID</Th>
+                              <Th>Zákazník</Th>
+                              <Th>Od</Th>
+                              <Th>Do</Th>
+                              <Th>Vráceno</Th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {(histories[it.id] || []).map((l) => (
+                              <tr key={l.id} className="border-t border-slate-800">
+                                <Td>{l.id}</Td>
+                                <Td>{getCustomerName(l.customer_id)}</Td>
+                                <Td>{formatDateTime(l.date_out)}</Td>
+                                <Td>{formatDateTime(l.date_due)}</Td>
+                                <Td>{formatDateTime(l.date_in)}</Td>
+                              </tr>
+                            ))}
+                            {(histories[it.id] || []).length === 0 && (
+                              <tr>
+                                <Td colSpan={5} className="text-center text-slate-400 py-3">
+                                  Zatím žádné záznamy.
+                                </Td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </Td>
+                  </tr>
+                )}
+              </Fragment>
             ))}
             {items.length === 0 && (
               <tr>
@@ -1175,7 +1247,7 @@ function OrdersView() {
     } else {
       let msg = `HTTP ${res.status}`;
       try {
-        const err = await res.json();
+      const err = await res.json();
         if (err && err.detail) msg = err.detail;
       } catch (e) {
         // keep default msg
@@ -1244,7 +1316,7 @@ function OrdersView() {
                 await safeStopScanner();
               } catch {}
               // zavřít UI skeneru
-              setScanOrderId(null);
+            setScanOrderId(null);
               // teprve teď zkusit přidat položku
               try {
                 if (currentOrderId != null) {
