@@ -1552,8 +1552,30 @@ function OrdersView() {
                               handleScanInputChange(o.id, e.target.value)
                             }
                             placeholder="Naskenuj nebo zadej kód položky"
+                            list={`order-codes-${o.id}`}
                             className="px-3 py-2 rounded-md bg-slate-800 border border-slate-700 text-sm min-w-[220px] flex-1"
                           />
+                          <datalist id={`order-codes-${o.id}`}>
+                            {(items || [])
+                              .filter((it) => {
+                                const norm = (s) =>
+                                  (s || "")
+                                    .replace(/\u2013|\u2014|\u2212|\u2010|\u2011/g, "-")
+                                    .replace(/\u00A0/g, " ")
+                                    .trim()
+                                    .toLowerCase();
+                                const q = norm(scanInputs[o.id] || "");
+                                if (!q) return true;
+                                return (
+                                  norm(it.code).includes(q) ||
+                                  (it.name || "").toLowerCase().includes(q)
+                                );
+                              })
+                              .slice(0, 20)
+                              .map((it) => (
+                                <option key={it.id} value={it.code} label={it.name || ""} />
+                              ))}
+                          </datalist>
                           <button
                             onClick={() => handleAddByCode(o.id)}
                             className="px-4 py-2 rounded-md bg-blue-500 hover:bg-blue-600 text-sm font-medium"
