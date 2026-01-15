@@ -1,38 +1,55 @@
 INFO:     Will watch for changes in these directories: ['/Users/martintrejtnar/Projects/AVTECHNIKA_IS']
 INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
-INFO:     Started reloader process [34233] using WatchFiles
-INFO:     Started server process [34310]
+INFO:     Started reloader process [49791] using WatchFiles
+INFO:     Started server process [49881]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
-INFO:     127.0.0.1:54120 - "GET /customers HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54119 - "GET /items HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54135 - "GET /customers HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54134 - "GET /items HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54243 - "GET /customers HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54242 - "GET /items HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54249 - "GET /customers HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54248 - "GET /items HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54254 - "GET /items/2/loans HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54432 - "GET /customers HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54431 - "GET /items HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54443 - "GET /customers HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54442 - "GET /items HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54481 - "GET /customers HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54480 - "GET /items HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54485 - "GET /customers HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54484 - "GET /items HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54492 - "GET /items/3/loans HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54501 - "GET /items/4/loans HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54518 - "GET /customers HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54516 - "GET /orders HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54517 - "GET /items HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54522 - "GET /customers HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54520 - "GET /loans HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54521 - "GET /items HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54525 - "GET /customers HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54528 - "GET /customers HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54526 - "GET /loans HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54527 - "GET /items HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54532 - "GET /customers HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54531 - "GET /orders HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54533 - "GET /items HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56148 - "GET /customers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56150 - "GET /orders HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56151 - "GET /customers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56152 - "GET /items HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56160 - "GET /customers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56159 - "GET /items HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56163 - "GET /customers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56162 - "GET /orders HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56164 - "GET /items HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56335 - "GET /customers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56343 - "GET /customers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56344 - "GET /items HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56346 - "GET /orders HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56347 - "GET /customers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56348 - "GET /items HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56350 - "GET /orders HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56351 - "GET /customers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56352 - "GET /items HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56403 - "GET /orders HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56404 - "GET /customers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56405 - "GET /items HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56458 - "POST /orders HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56459 - "POST /loans HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56460 - "POST /loans HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56461 - "POST /loans HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56463 - "GET /customers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56462 - "GET /orders HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56464 - "GET /items HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56473 - "GET /orders/14/loans HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56483 - "GET /customers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56481 - "GET /loans HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56482 - "GET /items HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56486 - "GET /customers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56485 - "GET /orders HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56487 - "GET /items HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56497 - "GET /loans HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56500 - "GET /customers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56499 - "GET /items HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56502 - "GET /customers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56505 - "GET /customers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56504 - "GET /items HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56510 - "GET /customers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56521 - "GET /customers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56522 - "GET /items HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56520 - "GET /loans HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56525 - "GET /customers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56527 - "GET /customers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56526 - "GET /orders HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56528 - "GET /items HTTP/1.1" 200 OK

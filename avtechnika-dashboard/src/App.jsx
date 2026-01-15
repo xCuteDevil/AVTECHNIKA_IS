@@ -708,7 +708,7 @@ function CustomersView() {
             <tr>
               <Th>ID</Th>
               <Th>Název</Th>
-              <Th>Kontakt</Th>
+              <Th>Kontaktní osoba</Th>
               <Th>Email</Th>
               <Th>Telefon</Th>
             </tr>
@@ -859,10 +859,12 @@ function LoansView() {
           required
           className="px-3 py-2 rounded-md bg-slate-800 border border-slate-700 text-sm min-w-[180px]"
         >
-          <option value="">– Vyber zákazníka –</option>
+          <option value="">– Vyber kontaktní osobu –</option>
           {customers.map((c) => (
             <option key={c.id} value={c.id}>
-              {c.name}
+              {(c.contact_person && c.contact_person.trim().length > 0)
+                ? `${c.contact_person} — ${c.name}`
+                : c.name}
             </option>
           ))}
         </select>
@@ -1081,8 +1083,13 @@ function OrdersView() {
     }
   };
 
-  const getCustomerName = (id) =>
-    customers.find((c) => c.id === id)?.name || `#${id}`;
+  const getCustomerName = (id) => {
+    const c = customers.find((x) => x.id === id);
+    if (!c) return `#${id}`;
+    return c.contact_person && c.contact_person.trim().length > 0
+      ? `${c.contact_person} — ${c.name}`
+      : c.name;
+  };
   const getItemName = (id) =>
     items.find((i) => i.id === id)?.name || `#${id}`;
   const getItemCode = (id) =>
@@ -1365,10 +1372,12 @@ function OrdersView() {
           required
           className="px-3 py-2 rounded-md bg-slate-800 border border-slate-700 text-sm min-w-[180px]"
         >
-          <option value="">– Vyber zákazníka –</option>
+          <option value="">– Vyber kontaktní osobu –</option>
           {customers.map((c) => (
             <option key={c.id} value={c.id}>
-              {c.name}
+              {(c.contact_person && c.contact_person.trim().length > 0)
+                ? `${c.contact_person} — ${c.name}`
+                : c.name}
             </option>
           ))}
         </select>
@@ -1552,7 +1561,7 @@ function OrdersView() {
           <thead className="bg-slate-800/80">
             <tr>
               <Th>ID</Th>
-              <Th>Zákazník</Th>
+              <Th>Kontaktní osoba</Th>
               <Th>Od</Th>
               <Th>Do</Th>
               <Th>Akce</Th>
@@ -1578,12 +1587,12 @@ function OrdersView() {
                     <div className="space-y-1">
                       {o.status === "OPEN" ? (
                         <>
-                        <button
-                          onClick={() => handleClose(o.id)}
+                          <button
+                            onClick={() => handleClose(o.id)}
                             className="w-full px-3 py-1 rounded-md bg-emerald-500 hover:bg-emerald-600 text-xs font-medium"
-                        >
-                          Uzavřít zakázku
-                        </button>
+                          >
+                            Uzavřít zakázku
+                          </button>
                           <button
                             onClick={() => {
                               setExpandedOrder(o.id);
@@ -1593,13 +1602,11 @@ function OrdersView() {
                           >
                             Skenovat (QR) – přidat položky
                           </button>
+                          <div className="text-[11px] text-slate-500">
+                            výpůjčky přes QR
+                          </div>
                         </>
-                      ) : (
-                        <span className="text-xs text-slate-400">(nelze)</span>
-                      )}
-                      <div className="text-[11px] text-slate-500">
-                        výpůjčky přes QR
-                      </div>
+                      ) : null}
                     </div>
                   </Td>
                   <Td>
