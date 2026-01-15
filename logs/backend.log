@@ -1,11 +1,8 @@
 INFO:     Will watch for changes in these directories: ['/Users/martintrejtnar/Projects/AVTECHNIKA_IS']
 INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
-INFO:     Started reloader process [88878] using WatchFiles
-INFO:     Started server process [88968]
+INFO:     Started reloader process [986] using WatchFiles
+INFO:     Started server process [1068]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
-INFO:     127.0.0.1:61982 - "GET /customers HTTP/1.1" 200 OK
-INFO:     127.0.0.1:61986 - "GET /customers HTTP/1.1" 200 OK
-INFO:     127.0.0.1:61981 - "GET /items HTTP/1.1" 200 OK
-INFO:     127.0.0.1:62003 - "PUT /customers/1 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:62004 - "GET /customers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64104 - "GET /customers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64103 - "GET /items HTTP/1.1" 200 OK

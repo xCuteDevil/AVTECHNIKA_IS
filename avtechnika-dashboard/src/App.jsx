@@ -51,7 +51,7 @@ function App() {
     <div className="min-h-screen bg-slate-900 text-slate-50">
       <div className="max-w-6xl mx-auto px-4 py-8">
         <header className="mb-8">
-          <div className="mb-2">
+          <div className="mb-6">
             <img
               src="/logo.png"
               alt="AV Technika"
