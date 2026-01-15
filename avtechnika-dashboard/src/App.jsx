@@ -51,8 +51,15 @@ function App() {
     <div className="min-h-screen bg-slate-900 text-slate-50">
       <div className="max-w-6xl mx-auto px-4 py-8">
         <header className="mb-8">
-          <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-4">
-            AV Technika – IS výpůjček
+          <div className="mb-2">
+            <img
+              src="/logo.png"
+              alt="AV Technika"
+              className="h-8 md:h-10 w-auto object-contain rounded-sm shadow"
+            />
+          </div>
+          <h1 className="text-3xl md:text-5xl font-bold tracking-tight leading-tight text-center">
+            IS výpůjček
           </h1>
 
           <nav className="flex flex-wrap gap-3 mt-4">
