@@ -1562,6 +1562,8 @@ function OrdersView() {
             <tr>
               <Th>ID</Th>
               <Th>Kontaktní osoba</Th>
+              <Th>Název akce</Th>
+              <Th>Místo akce</Th>
               <Th>Od</Th>
               <Th>Do</Th>
               <Th>Akce</Th>
@@ -1581,6 +1583,8 @@ function OrdersView() {
                     </button>
                   </Td>
                   <Td>{getCustomerName(o.customer_id)}</Td>
+                  <Td>{o.event_name || "-"}</Td>
+                  <Td>{o.event_location || "-"}</Td>
                   <Td>{formatDateTime(o.date_out)}</Td>
                   <Td>{formatDateTime(o.date_due)}</Td>
                   <Td>
@@ -1622,7 +1626,7 @@ function OrdersView() {
 
                 {expandedOrder === o.id && (
                   <tr className="border-t border-slate-800 bg-slate-900/60">
-                    <Td colSpan={7}>
+                    <Td colSpan={8}>
                       <div className="space-y-4">
                         <div className="flex flex-wrap items-center gap-3">
                           <input
@@ -1774,7 +1778,7 @@ function OrdersView() {
             ))}
             {orders.length === 0 && (
               <tr>
-                <Td colSpan={7} className="text-center text-slate-400 py-6">
+                <Td colSpan={8} className="text-center text-slate-400 py-6">
                   Zatím žádné zakázky.
                 </Td>
               </tr>
