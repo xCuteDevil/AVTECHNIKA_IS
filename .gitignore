@@ -1,0 +1,67 @@
+# ---- OS junk ----
+.DS_Store
+Thumbs.db
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+*.eggs/
+.eggs/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.pytype/
+.coverage*
+*.pyre/
+
+# Databases (keep local dev DBs out of git)
+*.sqlite
+*.sqlite3
+*.db
+dev.db
+
+# Logs and runtime artefacts
+logs/
+*.log
+
+# Env files / secrets
+.env
+.env.local
+.env.*.local
+
+# Certificates / keys (never commit)
+**/*.key
+**/*.pem
+**/*.p12
+**/*.pfx
+**/*.crt
+certs/**
+avtechnika-dashboard/certs/**
+
+# ---- Node / Frontend ----
+**/node_modules/
+**/.npm/
+**/.yarn/*
+**/.pnpm-store/
+**/dist/
+**/.cache/
+**/.vite/
+**/.parcel-cache/
+coverage/
+
+# IDE / tooling
+.idea/
+.vscode/
+.turbo/
+
+# Build artefacts
+build/
+dist/
+
+
