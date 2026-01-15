@@ -441,6 +441,19 @@ def delete_customer(customer_id: int, db: Session = Depends(get_db)):
     db.commit()
     return None
 
+@app.get("/customers/{customer_id}/loans", response_model=List[LoanOut])
+def list_customer_loans(customer_id: int, db: Session = Depends(get_db)):
+    customer = db.query(Customer).get(customer_id)
+    if not customer:
+        raise HTTPException(status_code=404, detail="Zákazník nenalezen.")
+    loans = (
+        db.query(Loan)
+        .filter(Loan.customer_id == customer_id)
+        .order_by(Loan.date_out.desc())
+        .all()
+    )
+    return loans
+
 # ---------- LOANS endpointy ----------
 
 def get_or_create_system_user(db: Session) -> User:
@@ -606,6 +619,19 @@ def create_order(order_in: OrderCreate, db: Session = Depends(get_db)):
 @app.get("/orders", response_model=List[OrderOut])
 def list_orders(db: Session = Depends(get_db)):
     orders = db.query(Order).order_by(Order.created_at.desc()).all()
+    return orders
+
+@app.get("/customers/{customer_id}/orders", response_model=List[OrderOut])
+def list_customer_orders(customer_id: int, db: Session = Depends(get_db)):
+    customer = db.query(Customer).get(customer_id)
+    if not customer:
+        raise HTTPException(status_code=404, detail="Zákazník nenalezen.")
+    orders = (
+        db.query(Order)
+        .filter(Order.customer_id == customer_id)
+        .order_by(Order.created_at.desc())
+        .all()
+    )
     return orders
 
 

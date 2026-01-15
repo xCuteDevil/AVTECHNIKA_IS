@@ -968,6 +968,9 @@ function OrdersView() {
   const [scanInputs, setScanInputs] = useState({});
   const [scanOrderId, setScanOrderId] = useState(null);
   const qrRef = useRef(null);
+  const [customerHistoryOpen, setCustomerHistoryOpen] = useState(null);
+  const [customerOrdersById, setCustomerOrdersById] = useState({});
+  const [openHistoryOrders, setOpenHistoryOrders] = useState({});
   const [scanInfo, setScanInfo] = useState("");
   const [form, setForm] = useState({
     customer_id: "",
@@ -1161,6 +1164,13 @@ function OrdersView() {
     if (res.ok) {
       const data = await res.json();
       setOrderLoans((prev) => ({ ...prev, [id]: data }));
+    }
+  };
+  const loadCustomerOrders = async (customerId) => {
+    const res = await fetch(`${API_BASE}/customers/${customerId}/orders`);
+    if (res.ok) {
+      const data = await res.json();
+      setCustomerOrdersById((prev) => ({ ...prev, [customerId]: data }));
     }
   };
 
@@ -1582,7 +1592,22 @@ function OrdersView() {
                       #{o.id}
                     </button>
                   </Td>
-                  <Td>{getCustomerName(o.customer_id)}</Td>
+                  <Td>
+                    <button
+                      className="text-blue-300 hover:underline"
+                      onClick={async () => {
+                        const next =
+                          customerHistoryOpen === o.customer_id ? null : o.customer_id;
+                        setCustomerHistoryOpen(next);
+                        if (next && !customerOrdersById[o.customer_id]) {
+                          await loadCustomerOrders(o.customer_id);
+                        }
+                      }}
+                      title="Zobrazit historii zakázek této kontaktní osoby"
+                    >
+                      {getCustomerName(o.customer_id)}
+                    </button>
+                  </Td>
                   <Td>{o.event_name || "-"}</Td>
                   <Td>{o.event_location || "-"}</Td>
                   <Td>{formatDateTime(o.date_out)}</Td>
@@ -1623,6 +1648,105 @@ function OrdersView() {
                     </span>
                   </Td>
                 </tr>
+                {customerHistoryOpen === o.customer_id && (
+                  <tr className="border-t border-slate-800 bg-slate-900/60">
+                    <Td colSpan={8}>
+                      <div className="space-y-2">
+                        <div className="text-xs text-slate-300">
+                          Historie zakázek kontaktní osoby
+                        </div>
+                        <div className="overflow-x-auto rounded-lg border border-slate-800">
+                          <table className="min-w-full text-sm">
+                            <thead className="bg-slate-800/70">
+                              <tr>
+                                <Th>ID zakázky</Th>
+                                <Th>Název akce</Th>
+                                <Th>Místo</Th>
+                                <Th>Od</Th>
+                                <Th>Do</Th>
+                                <Th>Status</Th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {(customerOrdersById[o.customer_id] || []).map((ord) => (
+                                <Fragment key={ord.id}>
+                                <tr className="border-t border-slate-800">
+                                  <Td>
+                                    <button
+                                      className="text-blue-300 hover:underline"
+                                      onClick={async () => {
+                                        const next = { ...openHistoryOrders };
+                                        next[ord.id] = !next[ord.id];
+                                        setOpenHistoryOrders(next);
+                                        if (next[ord.id] && !orderLoans[ord.id]) {
+                                          await loadOrderLoans(ord.id);
+                                        }
+                                      }}
+                                    >
+                                      #{ord.id}
+                                    </button>
+                                  </Td>
+                                  <Td>{ord.event_name || "-"}</Td>
+                                  <Td>{ord.event_location || "-"}</Td>
+                                  <Td>{formatDateTime(ord.date_out)}</Td>
+                                  <Td>{formatDateTime(ord.date_due)}</Td>
+                                  <Td>
+                                    <span
+                                      className={`text-xs font-semibold ${
+                                        statusColors[ord.status] || ""
+                                      }`}
+                                    >
+                                      {statusLabels[ord.status] || ord.status}
+                                    </span>
+                                  </Td>
+                                </tr>
+                                {openHistoryOrders[ord.id] && (
+                                  <tr className="bg-slate-900/50">
+                                    <Td colSpan={6}>
+                                      <div className="overflow-x-auto rounded-md border border-slate-800">
+                                        <table className="min-w-full text-xs">
+                                          <thead className="bg-slate-800/70">
+                                            <tr>
+                                              <Th>Kód</Th>
+                                              <Th>Název</Th>
+                                            </tr>
+                                          </thead>
+                                          <tbody>
+                                            {(orderLoans[ord.id] || []).map((l) => (
+                                              <tr key={l.id} className="border-t border-slate-800">
+                                                <Td className="font-mono">{getItemCode(l.item_id)}</Td>
+                                                <Td>{getItemName(l.item_id)}</Td>
+                                              </tr>
+                                            ))}
+                                            {(orderLoans[ord.id] || []).length === 0 && (
+                                              <tr>
+                                                <Td colSpan={2} className="text-center text-slate-400 py-3">
+                                                  Žádné položky.
+                                                </Td>
+                                              </tr>
+                                            )}
+                                          </tbody>
+                                        </table>
+                                      </div>
+                                    </Td>
+                                  </tr>
+                                )}
+                                </Fragment>
+                              ))}
+                              {(customerOrdersById[o.customer_id] || []).length === 0 && (
+                                <tr>
+                                  <Td colSpan={5} className="text-center text-slate-400 py-4">
+                                    Zatím žádné zakázky.
+                                  </Td>
+                                </tr>
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </Td>
+                  </tr>
+                )}
 
                 {expandedOrder === o.id && (
                   <tr className="border-t border-slate-800 bg-slate-900/60">
