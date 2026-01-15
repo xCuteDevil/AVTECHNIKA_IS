@@ -44,3 +44,78 @@ INFO:     127.0.0.1:58839 - "GET /customers HTTP/1.1" 200 OK
 INFO:     127.0.0.1:58842 - "GET /customers HTTP/1.1" 200 OK
 INFO:     127.0.0.1:58841 - "GET /items HTTP/1.1" 200 OK
 INFO:     127.0.0.1:58846 - "GET /items/2/loans HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58898 - "GET /customers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58897 - "GET /orders HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58899 - "GET /items HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58912 - "GET /customers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58910 - "GET /loans HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58911 - "GET /items HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58914 - "GET /customers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58917 - "GET /customers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58916 - "GET /items HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59040 - "GET /loans HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59041 - "GET /customers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59042 - "GET /items HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59044 - "GET /customers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59049 - "GET /customers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59048 - "GET /orders HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59050 - "GET /items HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59056 - "GET /customers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59055 - "GET /loans HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59057 - "GET /items HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59064 - "GET /customers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59062 - "GET /orders HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59063 - "GET /items HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59067 - "GET /customers/3/orders HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59076 - "GET /orders/14/loans HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59085 - "GET /customers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59084 - "GET /loans HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59086 - "GET /items HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59096 - "PATCH /loans/26/return HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59099 - "GET /customers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59097 - "GET /loans HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59098 - "GET /items HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59104 - "GET /customers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59103 - "GET /orders HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59105 - "GET /items HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59108 - "GET /customers/3/orders HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59112 - "GET /orders/14/loans HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59121 - "GET /customers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59120 - "GET /loans HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59122 - "GET /items HTTP/1.1" 200 OK
+WARNING:  WatchFiles detected changes in 'main.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [61498]
+INFO:     Started server process [69571]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'main.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [69571]
+INFO:     Started server process [69717]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     127.0.0.1:59337 - "GET /items HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59338 - "GET /customers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59342 - "GET /loans HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59344 - "GET /customers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59343 - "GET /items HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59345 - "GET /orders HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59346 - "GET /customers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59347 - "GET /items HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59350 - "GET /orders/14/loans HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59357 - "GET /loans HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59358 - "GET /customers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59359 - "GET /items HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59364 - "PATCH /loans/25/return HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59365 - "GET /loans HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59367 - "GET /customers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59366 - "GET /items HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59369 - "GET /orders HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59370 - "GET /customers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59371 - "GET /items HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59373 - "GET /orders/14/loans HTTP/1.1" 200 OK

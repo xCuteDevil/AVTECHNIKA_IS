@@ -717,16 +717,14 @@ def add_item_to_order(
 
 
 @app.get("/orders/{order_id}/loans", response_model=List[LoanOut])
-def get_order_loans(order_id: int, db: Session = Depends(get_db)):
+def get_order_loans(order_id: int, active_only: bool = True, db: Session = Depends(get_db)):
     order = db.query(Order).get(order_id)
     if not order:
         raise HTTPException(status_code=404, detail="Zakázka nenalezena.")
-    loans = (
-        db.query(Loan)
-        .filter(Loan.order_id == order_id)
-        .order_by(Loan.id)
-        .all()
-    )
+    q = db.query(Loan).filter(Loan.order_id == order_id)
+    if active_only:
+        q = q.filter(Loan.date_in.is_(None))
+    loans = q.order_by(Loan.id).all()
     return loans
 
 
