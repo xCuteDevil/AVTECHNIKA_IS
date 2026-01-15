@@ -12,6 +12,7 @@ from database import SessionLocal, engine
 from models import (
     Base,
     Item,
+    ItemAccessory,
     Customer,
     Loan,
     User,
@@ -75,6 +76,15 @@ class ItemCreate(ItemBase):
 
 class ItemOut(ItemBase):
     id: int
+    # součástí (accessories) – volitelné, jen pro výpis
+    # jednoduchý výstup: pouze název a id
+    class AccessoryMini(BaseModel):
+        id: int
+        name: str
+        quantity: int
+        is_required: bool
+        model_config = ConfigDict(from_attributes=True)
+    accessories: List[AccessoryMini] = []
     model_config = ConfigDict(from_attributes=True)
 
 class ItemUpdate(BaseModel):
@@ -255,7 +265,12 @@ def list_items(include_inactive: bool = False, db: Session = Depends(get_db)):
     if include_inactive:
         items = db.query(Item).order_by(Item.id).all()
     else:
-        items = db.query(Item).filter(Item.is_active.is_(True)).order_by(Item.id).all()
+        items = (
+            db.query(Item)
+            .filter(Item.is_active.is_(True))
+            .order_by(Item.id)
+            .all()
+        )
     return items
 
 
@@ -287,6 +302,47 @@ def archive_item(item_id: int, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(item)
     return item
+
+# ---------- ITEM ACCESSORIES (součástí) ----------
+
+class AccessoryCreate(BaseModel):
+    name: str
+    quantity: Optional[int] = 1
+    is_required: Optional[bool] = True
+
+class AccessoryOut(BaseModel):
+    id: int
+    name: str
+    quantity: int
+    is_required: bool
+    model_config = ConfigDict(from_attributes=True)
+
+@app.get("/items/{item_id}/accessories", response_model=List[AccessoryOut])
+def list_item_accessories(item_id: int, db: Session = Depends(get_db)):
+    item = db.query(Item).get(item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Položka nenalezena.")
+    return item.accessories
+
+@app.post("/items/{item_id}/accessories", response_model=AccessoryOut)
+def add_item_accessory(item_id: int, acc_in: AccessoryCreate, db: Session = Depends(get_db)):
+    item = db.query(Item).get(item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Položka nenalezena.")
+    acc = ItemAccessory(item_id=item_id, name=acc_in.name, quantity=acc_in.quantity or 1, is_required=bool(acc_in.is_required))
+    db.add(acc)
+    db.commit()
+    db.refresh(acc)
+    return acc
+
+@app.delete("/items/{item_id}/accessories/{acc_id}", status_code=204)
+def delete_item_accessory(item_id: int, acc_id: int, db: Session = Depends(get_db)):
+    acc = db.query(ItemAccessory).get(acc_id)
+    if not acc or acc.item_id != item_id:
+        raise HTTPException(status_code=404, detail="Součást nenalezena.")
+    db.delete(acc)
+    db.commit()
+    return None
 
 @app.put("/items/{item_id}", response_model=ItemOut)
 def update_item(

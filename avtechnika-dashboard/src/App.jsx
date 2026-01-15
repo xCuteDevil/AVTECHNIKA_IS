@@ -422,6 +422,7 @@ function ItemsView() {
               <Th>Kód</Th>
               <Th>Název</Th>
               <Th>Kategorie</Th>
+              <Th>Součástí</Th>
               <Th>Akce</Th>
             </tr>
           </thead>
@@ -435,6 +436,44 @@ function ItemsView() {
                 <Td className="font-mono">{it.code}</Td>
                 <Td>{it.name}</Td>
                 <Td>{it.category}</Td>
+              <Td>
+                <div className="flex flex-wrap gap-1">
+                  {(it.accessories || []).map((a) => (
+                    <span
+                      key={a.id}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-[11px]"
+                    >
+                      {a.name}
+                      <button
+                        className="text-slate-400 hover:text-rose-400"
+                        title="Odebrat"
+                        onClick={async () => {
+                          if (!confirm(`Odebrat součást „${a.name}“?`)) return;
+                          await fetch(`${API_BASE}/items/${it.id}/accessories/${a.id}`, { method: "DELETE" });
+                          loadItems();
+                        }}
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                  <button
+                    className="px-2 py-0.5 rounded-md bg-slate-800 border border-slate-700 text-[11px] hover:bg-slate-700"
+                    onClick={async () => {
+                      const name = prompt("Název součásti (např. 230V kabel, dálkový ovladač)");
+                      if (!name) return;
+                      await fetch(`${API_BASE}/items/${it.id}/accessories`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ name }),
+                      });
+                      loadItems();
+                    }}
+                  >
+                    + přidat
+                  </button>
+                </div>
+              </Td>
                 <Td>
                   <button
                     onClick={() => startEdit(it)}
@@ -486,7 +525,7 @@ function ItemsView() {
             ))}
             {items.length === 0 && (
               <tr>
-                <Td colSpan={5} className="text-center text-slate-400 py-6">
+                <Td colSpan={6} className="text-center text-slate-400 py-6">
                   Zatím žádné položky.
                 </Td>
               </tr>
@@ -978,6 +1017,8 @@ function OrdersView() {
     items.find((i) => i.id === id)?.code || `#${id}`;
   const getItemCategory = (id) =>
     items.find((i) => i.id === id)?.category || "-";
+  const getItemAccessories = (id) =>
+    items.find((i) => i.id === id)?.accessories || [];
 
   const formatDateTime = (s) =>
     s ? new Date(s).toLocaleString("cs-CZ") : "-";
@@ -1572,6 +1613,7 @@ function OrdersView() {
                                 <Th>Kód</Th>
                                 <Th>Název</Th>
                                 <Th>Kategorie</Th>
+                                <Th>Součástí</Th>
                                 <Th>Akce</Th>
                               </tr>
                             </thead>
@@ -1584,6 +1626,18 @@ function OrdersView() {
                                   <Td className="font-mono">{getItemCode(l.item_id)}</Td>
                                   <Td>{getItemName(l.item_id)}</Td>
                                   <Td>{getItemCategory(l.item_id)}</Td>
+                                  <Td>
+                                    <div className="flex flex-wrap gap-1">
+                                      {getItemAccessories(l.item_id).map((a) => (
+                                        <span
+                                          key={a.id}
+                                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-[11px]"
+                                        >
+                                          {a.name}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  </Td>
                                   <Td>
                                     {o.status === "OPEN" ? (
                                       <button
@@ -1601,7 +1655,7 @@ function OrdersView() {
                               {(orderLoans[o.id] || []).length === 0 && (
                                 <tr>
                                   <Td
-                                    colSpan={4}
+                                    colSpan={5}
                                     className="text-center text-slate-400 py-4"
                                   >
                                     Zatím žádné položky v zakázce.
