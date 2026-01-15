@@ -128,6 +128,9 @@ function ItemsView() {
   const categoryInputRef = useRef(null);
   const [historyFor, setHistoryFor] = useState(null);
   const [histories, setHistories] = useState({});
+  const [orderDetailsById, setOrderDetailsById] = useState({});
+  const [orderLoansById, setOrderLoansById] = useState({});
+  const [openHistoryOrders, setOpenHistoryOrders] = useState({});
 
   const parseItemFromQr = (text) => {
     const raw = (text ?? "").trim();
@@ -183,6 +186,24 @@ function ItemsView() {
     if (res.ok) {
       const data = await res.json();
       setHistories((h) => ({ ...h, [itemId]: data }));
+    }
+  };
+  const loadOrderDetail = async (orderId) => {
+    if (!orderId) return;
+    if (orderDetailsById[orderId]) return;
+    const res = await fetch(`${API_BASE}/orders/${orderId}`);
+    if (res.ok) {
+      const data = await res.json();
+      setOrderDetailsById((m) => ({ ...m, [orderId]: data }));
+    }
+  };
+  const loadOrderLoansForItem = async (orderId) => {
+    if (!orderId) return;
+    if (orderLoansById[orderId]) return;
+    const res = await fetch(`${API_BASE}/orders/${orderId}/loans`);
+    if (res.ok) {
+      const data = await res.json();
+      setOrderLoansById((m) => ({ ...m, [orderId]: data }));
     }
   };
 
@@ -565,6 +586,7 @@ function ItemsView() {
                             <tr>
                               <Th>ID</Th>
                               <Th>Zákazník</Th>
+                            <Th>Zakázka</Th>
                               <Th>Od</Th>
                               <Th>Do</Th>
                               <Th>Vráceno</Th>
@@ -572,13 +594,70 @@ function ItemsView() {
                           </thead>
                           <tbody>
                             {(histories[it.id] || []).map((l) => (
-                              <tr key={l.id} className="border-t border-slate-800">
+                            <Fragment key={l.id}>
+                              <tr className="border-t border-slate-800">
                                 <Td>{l.id}</Td>
                                 <Td>{getCustomerName(l.customer_id)}</Td>
+                                <Td>
+                                  {l.order_id ? (
+                                    <button
+                                      className="text-blue-300 hover:underline"
+                                      onClick={async () => {
+                                        const next = { ...openHistoryOrders };
+                                        next[l.order_id] = !next[l.order_id];
+                                        setOpenHistoryOrders(next);
+                                        if (next[l.order_id]) {
+                                          await loadOrderDetail(l.order_id);
+                                          await loadOrderLoansForItem(l.order_id);
+                                        }
+                                      }}
+                                      title="Zobrazit obsah zakázky"
+                                    >
+                                      #{l.order_id}
+                                    </button>
+                                  ) : (
+                                    "-"
+                                  )}
+                                  {l.order_id && orderDetailsById[l.order_id]?.event_name ? (
+                                    <span className="text-slate-400"> — {orderDetailsById[l.order_id].event_name}</span>
+                                  ) : null}
+                                </Td>
                                 <Td>{formatDateTime(l.date_out)}</Td>
                                 <Td>{formatDateTime(l.date_due)}</Td>
                                 <Td>{formatDateTime(l.date_in)}</Td>
                               </tr>
+                              {l.order_id && openHistoryOrders[l.order_id] && (
+                                <tr className="bg-slate-900/40">
+                                  <Td colSpan={6}>
+                                    <div className="overflow-x-auto rounded-md border border-slate-800">
+                                      <table className="min-w-full text-[11px]">
+                                        <thead className="bg-slate-800/70">
+                                          <tr>
+                                            <Th>Kód</Th>
+                                            <Th>Název</Th>
+                                          </tr>
+                                        </thead>
+                                        <tbody>
+                                          {(orderLoansById[l.order_id] || []).map((ol) => (
+                                            <tr key={ol.id} className="border-t border-slate-800">
+                                              <Td className="font-mono">{items.find((x) => x.id === ol.item_id)?.code || `#${ol.item_id}`}</Td>
+                                              <Td>{items.find((x) => x.id === ol.item_id)?.name || ""}</Td>
+                                            </tr>
+                                          ))}
+                                          {(orderLoansById[l.order_id] || []).length === 0 && (
+                                            <tr>
+                                              <Td colSpan={2} className="text-center text-slate-400 py-2">
+                                                Žádné položky v zakázce.
+                                              </Td>
+                                            </tr>
+                                          )}
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  </Td>
+                                </tr>
+                              )}
+                            </Fragment>
                             ))}
                             {(histories[it.id] || []).length === 0 && (
                               <tr>
