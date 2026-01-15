@@ -58,9 +58,6 @@ function App() {
               className="h-8 md:h-10 w-auto object-contain rounded-sm shadow"
             />
           </div>
-          <h1 className="text-3xl md:text-5xl font-bold tracking-tight leading-tight text-center">
-            IS výpůjček
-          </h1>
 
           <nav className="flex flex-wrap gap-3 mt-4">
             <TabButton active={tab === "items"} onClick={() => setTab("items")}>
@@ -706,6 +703,7 @@ function CustomersView() {
     phone: "",
     note: "",
   });
+  const [editCustomerId, setEditCustomerId] = useState(null);
 
   const loadCustomers = async () => {
     const res = await fetch(`${API_BASE}/customers`);
@@ -723,8 +721,12 @@ function CustomersView() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const res = await fetch(`${API_BASE}/customers`, {
-      method: "POST",
+    const url = editCustomerId
+      ? `${API_BASE}/customers/${editCustomerId}`
+      : `${API_BASE}/customers`;
+    const method = editCustomerId ? "PUT" : "POST";
+    const res = await fetch(url, {
+      method,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(form),
     });
@@ -736,11 +738,34 @@ function CustomersView() {
         phone: "",
         note: "",
       });
+      setEditCustomerId(null);
       loadCustomers();
     } else {
       const err = await res.json();
       alert("Chyba: " + err.detail);
     }
+  };
+
+  const startEditCustomer = (c) => {
+    setForm({
+      name: c.name || "",
+      contact_person: c.contact_person || "",
+      email: c.email || "",
+      phone: c.phone || "",
+      note: c.note || "",
+    });
+    setEditCustomerId(c.id);
+  };
+
+  const cancelEditCustomer = () => {
+    setEditCustomerId(null);
+    setForm({
+      name: "",
+      contact_person: "",
+      email: "",
+      phone: "",
+      note: "",
+    });
   };
 
   return (
@@ -784,8 +809,17 @@ function CustomersView() {
           type="submit"
           className="px-4 py-2 rounded-md bg-blue-500 hover:bg-blue-600 text-sm font-medium"
         >
-          Přidat zákazníka
+          {editCustomerId ? "Uložit změny" : "Přidat zákazníka"}
         </button>
+        {editCustomerId && (
+          <button
+            type="button"
+            onClick={cancelEditCustomer}
+            className="px-4 py-2 rounded-md bg-slate-700 hover:bg-slate-600 text-sm font-medium"
+          >
+            Zrušit
+          </button>
+        )}
       </form>
 
       <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-900/40">
@@ -797,6 +831,7 @@ function CustomersView() {
               <Th>Kontaktní osoba</Th>
               <Th>Email</Th>
               <Th>Telefon</Th>
+              <Th>Akce</Th>
             </tr>
           </thead>
           <tbody>
@@ -810,6 +845,14 @@ function CustomersView() {
                 <Td>{c.contact_person}</Td>
                 <Td>{c.email}</Td>
                 <Td>{c.phone}</Td>
+                <Td>
+                  <button
+                    onClick={() => startEditCustomer(c)}
+                    className="px-3 py-1 rounded-md bg-amber-500 hover:bg-amber-600 text-xs font-medium"
+                  >
+                    Upravit
+                  </button>
+                </Td>
               </tr>
             ))}
             {customers.length === 0 && (
