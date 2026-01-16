@@ -1,8 +1,29 @@
 INFO:     Will watch for changes in these directories: ['/Users/martintrejtnar/Projects/AVTECHNIKA_IS']
 INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
-INFO:     Started reloader process [986] using WatchFiles
-INFO:     Started server process [1068]
+INFO:     Started reloader process [35919] using WatchFiles
+INFO:     Started server process [35996]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
-INFO:     127.0.0.1:64104 - "GET /customers HTTP/1.1" 200 OK
-INFO:     127.0.0.1:64103 - "GET /items HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53481 - "GET /customers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53480 - "GET /loans HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53482 - "GET /items HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53485 - "GET /customers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53484 - "GET /orders HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53486 - "GET /items HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53494 - "POST /orders/15/add_item_by_code HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53495 - "GET /orders/15/loans HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53497 - "GET /customers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53496 - "GET /orders HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53498 - "GET /items HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53503 - "GET /orders/14/loans HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53516 - "GET /customers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53514 - "GET /loans HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53515 - "GET /items HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53527 - "GET /customers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53525 - "GET /orders HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53526 - "GET /items HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53576 - "POST /orders HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53577 - "GET /orders HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53578 - "GET /customers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53579 - "GET /items HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53585 - "POST /orders/16/add_item_by_code HTTP/1.1" 400 Bad Request

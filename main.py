@@ -683,16 +683,24 @@ def add_item_to_order(
             db.add(item)
             db.flush()  # získáme id
 
-    # ověřit, že položka není aktivně vypůjčená
-    existing = (
+    # Ověřit, že se nekrývá s jinou výpůjčkou/rezervací stejného kusu.
+    # Bereme plánované rozmezí nové výpůjčky z termínů zakázky.
+    new_start = order.date_out or datetime.utcnow()
+    new_end = order.date_due
+    # existuje-li konflikt: (loan.date_out <= new_end) AND (coalesce(loan.date_in, loan.date_due) >= new_start)
+    end_col = func.coalesce(Loan.date_in, Loan.date_due)
+    conflict = (
         db.query(Loan)
-        .filter(Loan.item_id == item.id, Loan.date_in.is_(None))
+        .filter(Loan.item_id == item.id)
+        .filter(Loan.order_id != order.id if True else True)  # jen pro jistotu
+        .filter(Loan.date_out <= new_end)
+        .filter(end_col >= new_start)
         .first()
     )
-    if existing:
+    if conflict:
         raise HTTPException(
             status_code=400,
-            detail="Položka je již vypůjčená (existuje aktivní výpůjčka).",
+            detail="Položka je rezervovaná/vypůjčená v překrývajícím se termínu.",
         )
 
     customer = db.query(Customer).get(order.customer_id)
@@ -705,7 +713,8 @@ def add_item_to_order(
         item_id=item.id,
         customer_id=customer.id,
         issued_by=system_user.id,
-        date_due=order.date_due,
+        date_out=new_start,
+        date_due=new_end,
         condition_out=payload.condition_out,
         note=payload.note,
         order_id=order.id,
