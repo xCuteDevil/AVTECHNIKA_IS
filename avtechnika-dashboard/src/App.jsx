@@ -1760,9 +1760,6 @@ function OrdersView() {
                           >
                             Skenovat (QR) – přidat položky
                           </button>
-                          <div className="text-[11px] text-slate-500">
-                            výpůjčky přes QR
-                          </div>
                         </>
                       ) : null}
                     </div>
