@@ -4,6 +4,8 @@ from pydantic import BaseModel, ConfigDict
 from typing import List, Optional
 import re
 import unicodedata
+import base64
+from pathlib import Path
 
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -264,6 +266,14 @@ def _generate_unique_code(db: Session, name: Optional[str], category: Optional[s
         i += 1
 
 
+def _qr_output_dir() -> Path:
+    # Uložíme do frontend public/qr, aby se dalo snadno tisknout/stahovat
+    root = Path(__file__).resolve().parent
+    out = root / "avtechnika-dashboard" / "public" / "qr"
+    out.mkdir(parents=True, exist_ok=True)
+    return out
+
+
 @app.post("/items", response_model=ItemOut)
 def create_item(item_in: ItemCreate, db: Session = Depends(get_db)):
     # Pokud kód není zadán, vygenerujeme unikátní podle názvu/kategorie
@@ -301,6 +311,37 @@ def create_item(item_in: ItemCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(item)
     return item
+
+
+class ItemQrImageIn(BaseModel):
+    png_base64: str
+
+
+@app.post("/items/{item_id}/qr_image", status_code=204)
+def save_item_qr_image(item_id: int, payload: ItemQrImageIn, db: Session = Depends(get_db)):
+    item = db.query(Item).get(item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Položka nenalezena.")
+    data = payload.png_base64 or ""
+    try:
+        if data.startswith("data:"):
+            data = data.split(",", 1)[1]
+        raw = base64.b64decode(data, validate=True)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Neplatná PNG data.")
+    # Bezpečný název souboru z kódu položky
+    code = item.code or f"item-{item.id}"
+    safe = re.sub(r"[^A-Za-z0-9_-]+", "-", code).strip("-")
+    if not safe:
+        safe = f"item-{item.id}"
+    out_dir = _qr_output_dir()
+    path = out_dir / f"{safe}.png"
+    try:
+        with open(path, "wb") as f:
+            f.write(raw)
+    except Exception:
+        raise HTTPException(status_code=500, detail="Nepodařilo se uložit obrázek.")
+    return
 
 
 @app.get("/items", response_model=List[ItemOut])

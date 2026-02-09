@@ -235,9 +235,11 @@ function ItemsView() {
       try {
         saved = await res.json();
       } catch {}
-      if (wasAutoRequest && saved) {
-        // Po automatickém vygenerování kódu rovnou nabídneme tisk QR
-        openQrForItem(saved);
+      if (saved && !editId) {
+        // 1) Tiché automatické uložení QR PNG do public/qr
+        autoSaveQrForItem(saved);
+        // 2) Pokud uživatel nezadal kód a byl vygenerován, ukážeme i tisknutelné okno
+        if (wasAutoRequest) openQrForItem(saved);
       }
       setForm({
         code: "",
@@ -283,10 +285,13 @@ function ItemsView() {
   };
 
   const openQrForItem = (it) => {
-    const payload = `${it.code || ""}|${it.name || ""}|${it.category || ""}`;
+    // Pro maximální spolehlivost skenování ukládáme do QR jen KÓD
+    const payload = `${it.code || ""}`;
     const escaped = JSON.stringify(payload);
     const codeEsc = JSON.stringify(it.code || "");
     const nameEsc = JSON.stringify(it.name || "");
+    const apiBase = JSON.stringify(API_BASE);
+    const itemId = JSON.stringify(it.id);
     const html = `
 <!doctype html>
 <html>
@@ -300,7 +305,10 @@ function ItemsView() {
       .card { background:#0b1220; border:1px solid #1f2937; padding:16px; border-radius:12px; }
       .meta { font-size:12px; color:#94a3b8; text-align:center; }
       .title { font-weight:700; font-size:18px; text-align:center; }
-      button { padding:8px 12px; border-radius:8px; border:0; background:#2563eb; color:#fff; cursor:pointer; }
+      .btn { padding:8px 12px; border-radius:8px; border:0; background:#2563eb; color:#fff; cursor:pointer; }
+      .row { display:flex; gap:8px; }
+      .ok { color:#86efac; font-size:12px; }
+      .err { color:#fda4af; font-size:12px; }
     </style>
   </head>
   <body>
@@ -309,8 +317,12 @@ function ItemsView() {
     </div>
     <div class="title"><span class="code"></span></div>
     <div class="meta"><span class="name"></span></div>
-    <div class="meta">Obsah QR: CODE|NÁZEV|KATEGORIE</div>
-    <div><button onclick="window.print()">Tisk</button></div>
+    <div class="meta">Obsah QR: KÓD</div>
+    <div class="row">
+      <button class="btn" onclick="window.print()">Tisk</button>
+      <button class="btn" id="saveBtn">Uložit do projektu</button>
+    </div>
+    <div id="msg"></div>
     <script src="https://cdn.jsdelivr.net/gh/davidshimjs/qrcodejs/qrcode.min.js"></script>
     <script>
       const text = ${escaped};
@@ -320,7 +332,53 @@ function ItemsView() {
         text,
         width: 320,
         height: 320,
-        correctLevel: QRCode.CorrectLevel.M
+        // menší hustota dat → spolehlivější čtení
+        correctLevel: QRCode.CorrectLevel.L
+      });
+      function getDataUrl() {
+        const host = document.getElementById('qrcode');
+        const canvas = host.querySelector('canvas');
+        if (canvas) return canvas.toDataURL('image/png');
+        const img = host.querySelector('img');
+        if (img && img.src && img.src.startsWith('data:image')) return img.src;
+        if (img && img.src) {
+          const c = document.createElement('canvas');
+          c.width = 320; c.height = 320;
+          const ctx = c.getContext('2d');
+          const im = new Image();
+          return new Promise((resolve, reject) => {
+            im.crossOrigin = 'anonymous';
+            im.onload = () => { ctx.drawImage(im, 0, 0, 320, 320); resolve(c.toDataURL('image/png')); };
+            im.onerror = reject;
+            im.src = img.src;
+          });
+        }
+        return null;
+      }
+      async function ensureDataUrl() {
+        const v = getDataUrl();
+        if (v && typeof v.then === 'function') return await v;
+        return v;
+      }
+      document.getElementById('saveBtn').addEventListener('click', async () => {
+        const msg = document.getElementById('msg');
+        msg.textContent = '';
+        try {
+          const dataUrl = await ensureDataUrl();
+          if (!dataUrl) throw new Error('Nepodařilo se přečíst QR obrázek.');
+          const res = await fetch(${apiBase} + '/items/' + ${itemId} + '/qr_image', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ png_base64: dataUrl })
+          });
+          if (!res.ok) {
+            const t = await res.text().catch(()=>'');
+            throw new Error('Ukládání selhalo: ' + (t || res.status));
+          }
+          msg.innerHTML = '<span class="ok">Uloženo do složky public/qr.</span>';
+        } catch (e) {
+          msg.innerHTML = '<span class="err">' + (e && e.message ? e.message : 'Chyba při ukládání') + '</span>';
+        }
       });
     </script>
   </body>
@@ -332,6 +390,102 @@ function ItemsView() {
       w.document.close();
     } else {
       alert("Nelze otevřít okno pro QR – povol v prohlížeči otevírání oken.");
+    }
+  };
+
+  // --- Auto-generate QR PNG in background and save to project (no popup) ---
+  let qrLibPromise = null;
+  const loadQrLib = () => {
+    if (window.QRCode) return Promise.resolve(window.QRCode);
+    if (qrLibPromise) return qrLibPromise;
+    qrLibPromise = new Promise((resolve, reject) => {
+      const s = document.createElement("script");
+      s.src = "https://cdn.jsdelivr.net/gh/davidshimjs/qrcodejs/qrcode.min.js";
+      s.async = true;
+      s.onload = () => resolve(window.QRCode);
+      s.onerror = () => reject(new Error("Nepodařilo se načíst knihovnu QRCode.js"));
+      document.head.appendChild(s);
+    });
+    return qrLibPromise;
+  };
+
+  const generateQrDataUrl = async (text) => {
+    const QRCode = await loadQrLib();
+    const host = document.createElement("div");
+    host.style.position = "fixed";
+    host.style.left = "-9999px";
+    host.style.top = "0";
+    document.body.appendChild(host);
+    // Render
+    // eslint-disable-next-line no-new
+    new QRCode(host, {
+      text,
+      width: 320,
+      height: 320,
+      correctLevel: QRCode.CorrectLevel.L,
+    });
+    // Wait a tick for DOM to update
+    await new Promise((r) => setTimeout(r, 0));
+    // Read as PNG, pak přidáme klidovou zónu (quiet zone) pro lepší čitelnost
+    let srcCanvas = null;
+    let srcDataUrl = null;
+    const canvas = host.querySelector("canvas");
+    if (canvas && canvas.toDataURL) {
+      srcCanvas = canvas;
+      srcDataUrl = canvas.toDataURL("image/png");
+    } else {
+      const img = host.querySelector("img");
+      if (img && img.src) {
+        // převod <img> → canvas
+        const c = document.createElement("canvas");
+        c.width = 320;
+        c.height = 320;
+        const ctx = c.getContext("2d");
+        await new Promise((resolve, reject) => {
+          const im = new Image();
+          im.crossOrigin = "anonymous";
+          im.onload = () => {
+            ctx.drawImage(im, 0, 0, 320, 320);
+            resolve();
+          };
+          im.onerror = reject;
+          im.src = img.src;
+        });
+        srcCanvas = c;
+        srcDataUrl = c.toDataURL("image/png");
+      }
+    }
+    document.body.removeChild(host);
+    if (!srcCanvas || !srcDataUrl) return srcDataUrl || null;
+    // vytvoř finální plátno s bílým okrajem (quiet zone)
+    const border = 20; // px
+    const size = 320 + border * 2;
+    const out = document.createElement("canvas");
+    out.width = size;
+    out.height = size;
+    const octx = out.getContext("2d");
+    octx.fillStyle = "#fff";
+    octx.fillRect(0, 0, size, size);
+    octx.drawImage(srcCanvas, border, border);
+    return out.toDataURL("image/png");
+  };
+
+  const autoSaveQrForItem = async (it) => {
+    try {
+      // Ukládáme pouze kód pro nejlepší skenovatelnost
+      const payload = `${it.code || ""}`;
+      const dataUrl = await generateQrDataUrl(payload);
+      if (!dataUrl) return;
+      await fetch(`${API_BASE}/items/${it.id}/qr_image`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ png_base64: dataUrl }),
+      });
+    } catch (e) {
+      try {
+        // eslint-disable-next-line no-console
+        console.warn("Auto-uložení QR selhalo:", e);
+      } catch {}
     }
   };
 
@@ -1504,11 +1658,16 @@ function OrdersView() {
         .start(
           { facingMode: "environment" },
           {
-            fps: 10,
-            qrbox: { width: 240, height: 240 },
+            fps: 12,
+            // Dynamická oblast skenování: zabere ~80 % kratší strany náhledu, min 240, max 420
+            qrbox: function(viewfinderWidth, viewfinderHeight) {
+              const size = Math.max(240, Math.min(420, Math.floor(Math.min(viewfinderWidth, viewfinderHeight) * 0.8)));
+              return { width: size, height: size };
+            },
             aspectRatio: 1.0,
             formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
             experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+            disableFlip: true,
           },
           async (decodedText /* , decodedResult */) => {
             const currentOrderId = scanOrderId;
