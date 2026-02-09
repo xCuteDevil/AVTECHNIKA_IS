@@ -384,6 +384,18 @@ def delete_item(item_id: int, db: Session = Depends(get_db)):
             detail="Položku nelze smazat – existují výpůjčky pro tuto položku.",
         )
 
+    # pokusíme se smazat i vygenerovaný QR PNG ze složky public/qr
+    try:
+        code = item.code or f"item-{item.id}"
+        safe = re.sub(r"[^A-Za-z0-9_-]+", "-", code).strip("-") or f"item-{item.id}"
+        out_dir = _qr_output_dir()
+        path = out_dir / f"{safe}.png"
+        if path.exists():
+            path.unlink()
+    except Exception:
+        # neblokovat mazání položky kvůli IO chybě
+        pass
+
     db.delete(item)
     db.commit()
     return None
