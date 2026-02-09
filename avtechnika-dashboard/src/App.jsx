@@ -224,12 +224,21 @@ function ItemsView() {
     e.preventDefault();
     const url = editId ? `${API_BASE}/items/${editId}` : `${API_BASE}/items`;
     const method = editId ? "PUT" : "POST";
+    const wasAutoRequest = !editId && (!form.code || !String(form.code).trim());
     const res = await fetch(url, {
       method,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(form),
     });
     if (res.ok) {
+      let saved = null;
+      try {
+        saved = await res.json();
+      } catch {}
+      if (wasAutoRequest && saved) {
+        // Po automatickém vygenerování kódu rovnou nabídneme tisk QR
+        openQrForItem(saved);
+      }
       setForm({
         code: "",
         name: "",
@@ -271,6 +280,59 @@ function ItemsView() {
       serial_number: "",
       condition_note: "",
     });
+  };
+
+  const openQrForItem = (it) => {
+    const payload = `${it.code || ""}|${it.name || ""}|${it.category || ""}`;
+    const escaped = JSON.stringify(payload);
+    const codeEsc = JSON.stringify(it.code || "");
+    const nameEsc = JSON.stringify(it.name || "");
+    const html = `
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>QR – ${it.code || ""}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      body { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+             background:#0f172a; color:#e2e8f0; margin:0; padding:24px; display:flex; flex-direction:column; align-items:center; gap:12px; }
+      .card { background:#0b1220; border:1px solid #1f2937; padding:16px; border-radius:12px; }
+      .meta { font-size:12px; color:#94a3b8; text-align:center; }
+      .title { font-weight:700; font-size:18px; text-align:center; }
+      button { padding:8px 12px; border-radius:8px; border:0; background:#2563eb; color:#fff; cursor:pointer; }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <div id="qrcode" style="width:320px; height:320px;"></div>
+    </div>
+    <div class="title"><span class="code"></span></div>
+    <div class="meta"><span class="name"></span></div>
+    <div class="meta">Obsah QR: CODE|NÁZEV|KATEGORIE</div>
+    <div><button onclick="window.print()">Tisk</button></div>
+    <script src="https://cdn.jsdelivr.net/gh/davidshimjs/qrcodejs/qrcode.min.js"></script>
+    <script>
+      const text = ${escaped};
+      document.querySelector('.code').textContent = ${codeEsc};
+      document.querySelector('.name').textContent = ${nameEsc};
+      new QRCode(document.getElementById('qrcode'), {
+        text,
+        width: 320,
+        height: 320,
+        correctLevel: QRCode.CorrectLevel.M
+      });
+    </script>
+  </body>
+</html>`;
+    const w = window.open("", "_blank", "width=420,height=560");
+    if (w) {
+      w.document.open();
+      w.document.write(html);
+      w.document.close();
+    } else {
+      alert("Nelze otevřít okno pro QR – povol v prohlížeči otevírání oken.");
+    }
   };
 
   useEffect(() => {
@@ -386,7 +448,6 @@ function ItemsView() {
           placeholder="Kód (QR)"
           value={form.code}
           onChange={handleChange}
-          required
           ref={codeInputRef}
           className="px-3 py-2 rounded-md bg-slate-800 border border-slate-700 text-sm flex-1 min-w-[140px]"
         />
@@ -473,13 +534,13 @@ function ItemsView() {
           <tbody>
             {items.map((it) => (
               <Fragment key={it.id}>
-                <tr
-                  className="border-t border-slate-800 hover:bg-slate-800/40"
-                >
-                  <Td>{it.id}</Td>
-                  <Td className="font-mono">{it.code}</Td>
-                  <Td>{it.name}</Td>
-                  <Td>{it.category}</Td>
+              <tr
+                className="border-t border-slate-800 hover:bg-slate-800/40"
+              >
+                <Td>{it.id}</Td>
+                <Td className="font-mono">{it.code}</Td>
+                <Td>{it.name}</Td>
+                <Td>{it.category}</Td>
                 <Td>
                 <div className="flex flex-wrap gap-1">
                   {(it.accessories || []).map((a) => (
@@ -520,6 +581,12 @@ function ItemsView() {
                 </Td>
                   <Td>
                   <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      onClick={() => openQrForItem(it)}
+                      className="px-3 py-1 rounded-md bg-indigo-500 hover:bg-indigo-600 text-xs font-medium"
+                    >
+                      QR
+                    </button>
                     <button
                       onClick={async () => {
                         const next = historyFor === it.id ? null : it.id;
@@ -646,7 +713,7 @@ function ItemsView() {
                                             <tr key={ol.id} className="border-t border-slate-800">
                                               <Td className="font-mono">{items.find((x) => x.id === ol.item_id)?.code || `#${ol.item_id}`}</Td>
                                               <Td>{items.find((x) => x.id === ol.item_id)?.name || ""}</Td>
-                                            </tr>
+              </tr>
                                           ))}
                                           {(orderLoansById[l.order_id] || []).length === 0 && (
                                             <tr>
@@ -1745,12 +1812,12 @@ function OrdersView() {
                     <div className="space-y-1">
                       {o.status === "OPEN" ? (
                         <>
-                          <button
-                            onClick={() => handleClose(o.id)}
+                        <button
+                          onClick={() => handleClose(o.id)}
                             className="w-full px-3 py-1 rounded-md bg-emerald-500 hover:bg-emerald-600 text-xs font-medium"
-                          >
-                            Uzavřít zakázku
-                          </button>
+                        >
+                          Uzavřít zakázku
+                        </button>
                           <button
                             onClick={() => {
                               setExpandedOrder(o.id);

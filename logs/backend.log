@@ -229,3 +229,53 @@ INFO:     127.0.0.1:57006 - "GET /items HTTP/1.1" 200 OK
 INFO:     127.0.0.1:57040 - "GET /customers HTTP/1.1" 200 OK
 INFO:     127.0.0.1:57042 - "GET /customers HTTP/1.1" 200 OK
 INFO:     127.0.0.1:57041 - "GET /items HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57712 - "GET /customers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57711 - "GET /items HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57733 - "GET /customers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57732 - "GET /items HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57762 - "GET /customers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57761 - "GET /items HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57841 - "GET /customers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57840 - "GET /items HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57862 - "GET /customers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57861 - "GET /items HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57913 - "GET /customers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57912 - "GET /items HTTP/1.1" 200 OK
+WARNING:  WatchFiles detected changes in 'main.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [35996]
+INFO:     Started server process [89514]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     127.0.0.1:58241 - "GET /customers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58240 - "GET /items HTTP/1.1" 200 OK
+WARNING:  WatchFiles detected changes in 'main.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [89514]
+INFO:     Started server process [89859]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     127.0.0.1:58282 - "GET /customers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58281 - "GET /items HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58330 - "GET /customers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58329 - "GET /items HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58337 - "GET /customers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58340 - "GET /customers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58339 - "GET /items HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58393 - "GET /customers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58392 - "GET /items HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58572 - "GET /customers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58571 - "GET /items HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58586 - "GET /customers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58585 - "GET /items HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58610 - "GET /customers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58614 - "GET /customers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58613 - "GET /items HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58621 - "GET /customers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58620 - "GET /items HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58630 - "POST /items HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58632 - "GET /items HTTP/1.1" 200 OK

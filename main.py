@@ -2,6 +2,8 @@
 from fastapi import FastAPI, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict
 from typing import List, Optional
+import re
+import unicodedata
 
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -61,7 +63,7 @@ def get_db():
 # ---------- Pydantic schémata – ITEMS ----------
 
 class ItemBase(BaseModel):
-    code: str
+    code: Optional[str] = None
     name: str
     category: Optional[str] = None
     manufacturer: Optional[str] = None
@@ -227,26 +229,67 @@ def health():
 
 # ---------- ITEMS endpointy ----------
 
+def _slugify_for_code(name: Optional[str], category: Optional[str]) -> str:
+    src = (name or category or "ITEM").strip()
+    if not src:
+        src = "ITEM"
+    # remove diacritics
+    nfkd = unicodedata.normalize("NFKD", src)
+    ascii_str = "".join(ch for ch in nfkd if not unicodedata.combining(ch))
+    # replace non-alnum with hyphen, collapse, trim
+    s = re.sub(r"[^A-Za-z0-9]+", "-", ascii_str)
+    s = re.sub(r"-{2,}", "-", s).strip("-")
+    if not s:
+        s = "ITEM"
+    return s.upper()
+
+
+def _generate_unique_code(db: Session, name: Optional[str], category: Optional[str]) -> str:
+    base = _slugify_for_code(name, category)
+    candidate = base[:50]  # DB limit safeguard
+    # normalize function for compare
+    def exists(code: str) -> bool:
+        norm = _normalize_code_py(code)
+        return db.query(Item).filter(_normalize_code_sql(Item.code) == norm).first() is not None
+    if not exists(candidate):
+        return candidate
+    # try with numeric suffix -01, -02, ...
+    i = 1
+    while True:
+        suffix = f"-{i:02d}"
+        trimmed = base[: max(1, 50 - len(suffix))]
+        candidate = f"{trimmed}{suffix}"
+        if not exists(candidate):
+            return candidate
+        i += 1
+
+
 @app.post("/items", response_model=ItemOut)
 def create_item(item_in: ItemCreate, db: Session = Depends(get_db)):
-    existing = db.query(Item).filter(Item.code == item_in.code).first()
-    if existing:
-        # Pokud existuje archivovaná položka se stejným kódem, obnovíme ji a zaktualizujeme údaje
-        if hasattr(existing, "is_active") and existing.is_active is False:
-            existing.name = item_in.name
-            existing.category = item_in.category
-            existing.manufacturer = item_in.manufacturer
-            existing.serial_number = item_in.serial_number
-            existing.location = item_in.location
-            existing.condition_note = item_in.condition_note
-            existing.is_active = True
-            db.commit()
-            db.refresh(existing)
-            return existing
-        raise HTTPException(status_code=400, detail="Položka s tímto kódem už existuje.")
+    # Pokud kód není zadán, vygenerujeme unikátní podle názvu/kategorie
+    input_code = (item_in.code or "").strip()
+    if input_code:
+        existing = db.query(Item).filter(_normalize_code_sql(Item.code) == _normalize_code_py(input_code)).first()
+        if existing:
+            # Pokud existuje archivovaná položka se stejným kódem, obnovíme ji a zaktualizujeme údaje
+            if hasattr(existing, "is_active") and existing.is_active is False:
+                existing.name = item_in.name
+                existing.category = item_in.category
+                existing.manufacturer = item_in.manufacturer
+                existing.serial_number = item_in.serial_number
+                existing.location = item_in.location
+                existing.condition_note = item_in.condition_note
+                existing.is_active = True
+                db.commit()
+                db.refresh(existing)
+                return existing
+            raise HTTPException(status_code=400, detail="Položka s tímto kódem už existuje.")
+        code_to_use = input_code
+    else:
+        code_to_use = _generate_unique_code(db, item_in.name, item_in.category)
 
     item = Item(
-        code=item_in.code,
+        code=code_to_use,
         name=item_in.name,
         category=item_in.category,
         manufacturer=item_in.manufacturer,
