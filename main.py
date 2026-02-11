@@ -568,7 +568,19 @@ def delete_customer(customer_id: int, db: Session = Depends(get_db)):
     customer = db.query(Customer).get(customer_id)
     if not customer:
         raise HTTPException(status_code=404, detail="Zákazník nenalezen.")
-
+    # Základní ochrana: nelze smazat zákazníka, pokud má zakázky nebo výpůjčky
+    orders_count = db.query(Order).filter(Order.customer_id == customer_id).count()
+    loans_count = db.query(Loan).filter(Loan.customer_id == customer_id).count()
+    if orders_count > 0 or loans_count > 0:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Zákazníka nelze smazat – existují navázané "
+                f"{'zakázky' if orders_count > 0 else ''}"
+                f"{' a ' if orders_count > 0 and loans_count > 0 else ''}"
+                f"{'výpůjčky' if loans_count > 0 else ''}."
+            ),
+        )
     db.delete(customer)
     db.commit()
     return None

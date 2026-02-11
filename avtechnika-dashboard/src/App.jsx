@@ -1068,12 +1068,40 @@ function CustomersView() {
                 <Td>{c.email}</Td>
                 <Td>{c.phone}</Td>
                 <Td>
-                  <button
-                    onClick={() => startEditCustomer(c)}
-                    className="px-3 py-1 rounded-md bg-amber-500 hover:bg-amber-600 text-xs font-medium"
-                  >
-                    Upravit
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <IconBtn
+                      title="Upravit"
+                      onClick={() => {
+                        if (editCustomerId === c.id) {
+                          cancelEditCustomer();
+                        } else {
+                          startEditCustomer(c);
+                        }
+                      }}
+                    >
+                      <Svg.Edit />
+                    </IconBtn>
+                    <IconBtn
+                      title="Smazat zákazníka"
+                      onClick={async () => {
+                        if (!confirm("Opravdu odstranit zákazníka?")) return;
+                        const res = await fetch(`${API_BASE}/customers/${c.id}`, { method: "DELETE" });
+                        if (res.status === 204) {
+                          if (editCustomerId === c.id) cancelEditCustomer();
+                          loadCustomers();
+                        } else {
+                          try {
+                            const err = await res.json();
+                            alert("Smazání selhalo: " + (err.detail || res.statusText));
+                          } catch {
+                            alert("Smazání selhalo.");
+                          }
+                        }
+                      }}
+                    >
+                      <Svg.Trash />
+                    </IconBtn>
+                  </div>
                 </Td>
               </tr>
             ))}
