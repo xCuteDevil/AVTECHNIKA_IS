@@ -185,6 +185,8 @@ function ItemsView() {
     customers.find((c) => c.id === id)?.name || `#${id}`;
   const formatDateTime = (s) =>
     s ? new Date(s).toLocaleDateString("cs-CZ") : "-";
+  const formatDateTimeFull = (s) =>
+    s ? new Date(s).toLocaleString("cs-CZ") : "-";
   const loadHistory = async (itemId) => {
     const res = await fetch(`${API_BASE}/items/${itemId}/loans`);
     if (res.ok) {
@@ -1492,6 +1494,8 @@ function OrdersView() {
 
   const formatDateTime = (s) =>
     s ? new Date(s).toLocaleDateString("cs-CZ") : "-";
+  const formatDateTimeFull = (s) =>
+    s ? new Date(s).toLocaleString("cs-CZ") : "-";
   const formatDateInput = (s) => {
     if (!s) return "";
     const str = String(s);
@@ -2284,13 +2288,20 @@ function OrdersView() {
                     </div>
                   </Td>
                   <Td>
-                    <span
-                      className={`text-xs font-semibold ${
-                        statusColors[o.status] || ""
-                      }`}
-                    >
-                      {statusLabels[o.status] || o.status}
-                    </span>
+                    <div className="flex flex-col">
+                      <span
+                        className={`text-xs font-semibold ${
+                          statusColors[o.status] || ""
+                        }`}
+                      >
+                        {statusLabels[o.status] || o.status}
+                      </span>
+                      {o.status === "CLOSED" && o.date_closed ? (
+                        <span className="text-[11px] text-slate-400">
+                          Uzavřeno: {formatDateTimeFull(o.date_closed)}
+                        </span>
+                      ) : null}
+                    </div>
                   </Td>
                 </tr>
                 {customerHistoryOpen === o.customer_id && (
@@ -2340,13 +2351,20 @@ function OrdersView() {
                                   <Td>{formatDateTime(ord.date_due)}</Td>
                                   <Td>{formatDateTime(ord.return_at)}</Td>
                                   <Td>
-                                    <span
-                                      className={`text-xs font-semibold ${
-                                        statusColors[ord.status] || ""
-                                      }`}
-                                    >
-                                      {statusLabels[ord.status] || ord.status}
-                                    </span>
+                                    <div className="flex flex-col">
+                                      <span
+                                        className={`text-xs font-semibold ${
+                                          statusColors[ord.status] || ""
+                                        }`}
+                                      >
+                                        {statusLabels[ord.status] || ord.status}
+                                      </span>
+                                      {ord.status === "CLOSED" && ord.date_closed ? (
+                                        <span className="text-[11px] text-slate-400">
+                                          Uzavřeno: {formatDateTimeFull(ord.date_closed)}
+                                        </span>
+                                      ) : null}
+                                    </div>
                                   </Td>
                                 </tr>
                                 {openHistoryOrders[ord.id] && (
