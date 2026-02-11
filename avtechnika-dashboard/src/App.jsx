@@ -1498,6 +1498,50 @@ function OrdersView() {
     }
   };
 
+  const handleReturnLoan = async (loanId, orderId) => {
+    const res = await fetch(`${API_BASE}/loans/${loanId}/return`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ condition_in: "Vráceno – neinstalováno (rezerva)" }),
+    });
+    if (res.ok) {
+      // Refresh just this order's active loans and global lists
+      if (orderId != null) {
+        await loadOrderLoans(orderId);
+      }
+      await loadAll();
+      setScanInfo("Položka vrácena do skladu.");
+    } else {
+      try {
+        const err = await res.json();
+        alert("Vrácení selhalo: " + (err.detail || res.statusText));
+      } catch {
+        alert("Vrácení selhalo.");
+      }
+    }
+  };
+
+  const handleUnreturnLoan = async (loanId, orderId) => {
+    const res = await fetch(`${API_BASE}/loans/${loanId}/unreturn`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+    });
+    if (res.ok) {
+      if (orderId != null) {
+        await loadOrderLoans(orderId);
+      }
+      await loadAll();
+      setScanInfo("Vrácení zrušeno – položka je opět v zakázce.");
+    } else {
+      try {
+        const err = await res.json();
+        alert("Zrušení vrácení selhalo: " + (err.detail || res.statusText));
+      } catch {
+        alert("Zrušení vrácení selhalo.");
+      }
+    }
+  };
+
   const toggleOrder = async (id) => {
     if (expandedOrder === id) {
       setExpandedOrder(null);
@@ -1510,7 +1554,8 @@ function OrdersView() {
   };
 
   const loadOrderLoans = async (id) => {
-    const res = await fetch(`${API_BASE}/orders/${id}/loans`);
+    // include returned loans as well so that returned items remain visible in the order
+    const res = await fetch(`${API_BASE}/orders/${id}/loans?active_only=false`);
     if (res.ok) {
       const data = await res.json();
       setOrderLoans((prev) => ({ ...prev, [id]: data }));
@@ -2221,12 +2266,33 @@ function OrdersView() {
                                   </Td>
                                   <Td>
                                     {o.status === "OPEN" ? (
-                                      <button
-                                        onClick={() => handleDeleteLoan(l.id)}
-                                        className="px-3 py-1 rounded-md bg-rose-600 hover:bg-rose-700 text-xs font-medium"
-                                      >
-                                        Odstranit
-                                      </button>
+                                      <div className="flex items-center gap-2">
+                                        {l.date_in ? (
+                                          <button
+                                            onClick={() => handleUnreturnLoan(l.id, o.id)}
+                                            className="px-3 py-1 rounded-md bg-amber-500 hover:bg-amber-600 text-xs font-medium"
+                                          >
+                                            Zrušit vrácení
+                                          </button>
+                                        ) : (
+                                          <button
+                                            onClick={() => handleReturnLoan(l.id, o.id)}
+                                            className="px-3 py-1 rounded-md bg-emerald-500 hover:bg-emerald-600 text-xs font-medium"
+                                          >
+                                            Vrátit
+                                          </button>
+                                        )}
+                                        {!l.date_in && (
+                                          <button
+                                            onClick={() => handleDeleteLoan(l.id)}
+                                            className="px-3 py-1 rounded-md bg-rose-600 hover:bg-rose-700 text-xs font-medium"
+                                          >
+                                            Odstranit
+                                          </button>
+                                        )}
+                                      </div>
+                                    ) : l.date_in ? (
+                                      <span className="text-xs font-semibold text-emerald-300">Vráceno</span>
                                     ) : (
                                       <span className="text-xs text-slate-400">(nelze)</span>
                                     )}

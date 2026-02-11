@@ -680,6 +680,51 @@ def return_loan(
     return loan
 
 
+@app.patch("/loans/{loan_id}/unreturn", response_model=LoanOut)
+def unreturn_loan(loan_id: int, db: Session = Depends(get_db)):
+    """
+    Zruší vrácení výpůjčky (date_in -> NULL), pokud to nevede ke konfliktu.
+    """
+    loan = db.query(Loan).get(loan_id)
+    if not loan:
+        raise HTTPException(status_code=404, detail="Výpůjčka nenalezena.")
+    if loan.date_in is None:
+        raise HTTPException(status_code=400, detail="Výpůjčka není vrácena.")
+
+    # Kolizní kontrola: nesmí existovat jiná aktivní výpůjčka stejné položky v překryvu
+    new_start = loan.date_out
+    new_end = loan.date_due
+    end_col = func.coalesce(Loan.date_in, Loan.date_due)
+    conflict = (
+        db.query(Loan)
+        .filter(Loan.item_id == loan.item_id)
+        .filter(Loan.id != loan.id)
+        .filter(Loan.date_out <= new_end)
+        .filter(end_col >= new_start)
+        .filter(Loan.date_in.is_(None))
+        .first()
+    )
+    if conflict:
+        raise HTTPException(
+            status_code=400,
+            detail="Nelze zrušit vrácení – položka má jinou aktivní výpůjčku v překrývajícím se termínu.",
+        )
+
+    loan.date_in = None
+    loan.condition_in = None
+
+    # Pokud byla zakázka uzavřena automaticky a nyní ji znovu „otevíráme“, přepneme zpět
+    if loan.order_id is not None:
+        order = loan.order
+        if order and order.status == OrderStatus.CLOSED:
+            order.status = OrderStatus.OPEN
+            order.date_closed = None
+
+    db.commit()
+    db.refresh(loan)
+    return loan
+
+
 @app.delete("/loans/{loan_id}", status_code=204)
 def delete_loan(loan_id: int, db: Session = Depends(get_db)):
     loan = db.query(Loan).get(loan_id)
