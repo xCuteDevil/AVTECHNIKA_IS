@@ -69,9 +69,6 @@ function App() {
             >
               Zákazníci
             </TabButton>
-            <TabButton active={tab === "loans"} onClick={() => setTab("loans")}>
-              Výpůjčky
-            </TabButton>
             <TabButton
               active={tab === "orders"}
               onClick={() => setTab("orders")}
@@ -85,7 +82,6 @@ function App() {
 
         {tab === "items" && <ItemsView />}
         {tab === "customers" && <CustomersView />}
-        {tab === "loans" && <LoansView />}
         {tab === "orders" && <OrdersView />}
       </div>
     </div>
