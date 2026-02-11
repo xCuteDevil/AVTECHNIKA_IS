@@ -639,6 +639,15 @@ def create_loan(loan_in: LoanCreate, db: Session = Depends(get_db)):
         new_end = loan_in.date_due
     if new_end is None:
         raise HTTPException(status_code=400, detail="Chybí datum konce výpůjčky.")
+    # 3a) Zabránit duplicitě v rámci stejné zakázky (aktivní)
+    if order is not None:
+        dup = (
+            db.query(Loan)
+            .filter(Loan.order_id == order.id, Loan.item_id == item.id, Loan.date_in.is_(None))
+            .first()
+        )
+        if dup:
+            raise HTTPException(status_code=400, detail="Položka už je v této zakázce.")
     # Překryv je, pokud (existing_start < new_end) AND (existing_end > new_start)
     # Použijeme logistické okno existujících výpůjček přes navázanou zakázku:
     # existing_start = COALESCE(Order.depart_at, Loan.date_out)
@@ -918,6 +927,15 @@ def add_item_to_order(
             )
             db.add(item)
             db.flush()  # získáme id
+
+    # Ověřit, že stejná položka už není v této zakázce (aktivní)
+    dup = (
+        db.query(Loan)
+        .filter(Loan.order_id == order.id, Loan.item_id == item.id, Loan.date_in.is_(None))
+        .first()
+    )
+    if dup:
+        raise HTTPException(status_code=400, detail="Položka už je v této zakázce.")
 
     # Ověřit, že se nekrývá s jinou výpůjčkou/rezervací stejného kusu.
     # Bereme plánované rozmezí nové výpůjčky z termínů zakázky.

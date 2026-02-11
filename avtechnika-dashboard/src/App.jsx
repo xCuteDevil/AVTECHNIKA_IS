@@ -1413,6 +1413,7 @@ function OrdersView() {
       let createdLoans = 0;
       let failedLoans = [];
       if (selectedItemIds.length > 0) {
+        const uniqueIds = Array.from(new Set(selectedItemIds));
         const loanPayloadBase = {
           customer_id: Number(form.customer_id),
           date_due: form.date_due ? form.date_due + "T00:00:00" : null,
@@ -1420,7 +1421,7 @@ function OrdersView() {
           note: "",
           order_id: createdOrder.id,
         };
-        for (const itemId of selectedItemIds) {
+        for (const itemId of uniqueIds) {
           try {
             const lr = await fetch(`${API_BASE}/loans`, {
               method: "POST",
