@@ -718,8 +718,8 @@ function ItemsView() {
                       </button>
                     </span>
                   ))}
-                  <button
-                    className="px-2 py-0.5 rounded-md bg-slate-800 border border-slate-700 text-[11px] hover:bg-slate-700"
+                  <IconBtn
+                    title="Přidat součást"
                     onClick={async () => {
                       const name = prompt("Název součásti (např. 230V kabel, dálkový ovladač)");
                       if (!name) return;
@@ -731,19 +731,17 @@ function ItemsView() {
                       loadItems();
                     }}
                   >
-                    + přidat
-                  </button>
+                    <Svg.Plus />
+                  </IconBtn>
                 </div>
                 </Td>
                   <Td>
                   <div className="flex flex-wrap items-center gap-2">
-                    <button
-                      onClick={() => openQrForItem(it)}
-                      className="px-3 py-1 rounded-md bg-indigo-500 hover:bg-indigo-600 text-xs font-medium"
-                    >
-                      QR
-                    </button>
-                    <button
+                    <IconBtn title="QR" onClick={() => openQrForItem(it)}>
+                      <Svg.Scan />
+                    </IconBtn>
+                    <IconBtn
+                      title="Historie"
                       onClick={async () => {
                         const next = historyFor === it.id ? null : it.id;
                         setHistoryFor(next);
@@ -751,17 +749,23 @@ function ItemsView() {
                           await loadHistory(it.id);
                         }
                       }}
-                      className="px-3 py-1 rounded-md bg-slate-700 hover:bg-slate-600 text-xs font-medium"
                     >
-                      Historie
-                    </button>
-                    <button
-                      onClick={() => startEdit(it)}
-                      className="px-3 py-1 rounded-md bg-amber-500 hover:bg-amber-600 text-xs font-medium"
+                      <Svg.History />
+                    </IconBtn>
+                    <IconBtn
+                      title="Upravit"
+                      onClick={() => {
+                        if (editId === it.id) {
+                          cancelEdit();
+                        } else {
+                          startEdit(it);
+                        }
+                      }}
                     >
-                      Upravit
-                    </button>
-                    <button
+                      <Svg.Edit />
+                    </IconBtn>
+                    <IconBtn
+                      title="Smazat"
                       onClick={async () => {
                         if (!confirm("Opravdu smazat tuto položku?")) return;
                         const res = await fetch(`${API_BASE}/items/${it.id}`, { method: "DELETE" });
@@ -796,10 +800,9 @@ function ItemsView() {
                           }
                         }
                       }}
-                      className="px-3 py-1 rounded-md bg-rose-600 hover:bg-rose-700 text-xs font-medium"
                     >
-                      Smazat
-                    </button>
+                      <Svg.Trash />
+                    </IconBtn>
                   </div>
                   </Td>
                 </tr>
@@ -2746,6 +2749,16 @@ const Svg = {
   Reopen: () => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 text-amber-400">
       <path d="M12 6V3L8 7l4 4V8c3.31 0 6 2.69 6 6a6 6 0 1 1-6-6Z"/>
+    </svg>
+  ),
+  History: () => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 text-slate-300">
+      <path d="M12 8a1 1 0 0 1 1 1v2.586l1.707 1.707-1.414 1.414L11 13V9a1 1 0 0 1 1-1Zm0-6a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2Zm0 18a8 8 0 1 1 8-8 8.009 8.009 0 0 1-8 8Z"/>
+    </svg>
+  ),
+  Plus: () => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 text-slate-300">
+      <path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6V5Z"/>
     </svg>
   ),
 };
