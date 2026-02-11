@@ -1008,3 +1008,35 @@ def close_order(order_id: int, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(order)
     return order
+
+
+@app.delete("/orders/{order_id}", status_code=204)
+def delete_order(order_id: int, db: Session = Depends(get_db)):
+    """
+    Smaže zakázku včetně všech jejích výpůjček (cascade).
+    """
+    order = db.query(Order).get(order_id)
+    if not order:
+        raise HTTPException(status_code=404, detail="Zakázka nenalezena.")
+    db.delete(order)
+    db.commit()
+    return None
+
+
+@app.patch("/orders/{order_id}/reopen", response_model=OrderOut)
+def reopen_order(order_id: int, db: Session = Depends(get_db)):
+    """
+    Znovu otevře uzavřenou zakázku. Nevrací automaticky výpůjčky zpět do aktivního stavu.
+    """
+    order = db.query(Order).get(order_id)
+    if not order:
+        raise HTTPException(status_code=404, detail="Zakázka nenalezena.")
+    if order.status == OrderStatus.CANCELLED:
+        raise HTTPException(status_code=400, detail="Zrušenou zakázku nelze znovu otevřít.")
+    if order.status != OrderStatus.CLOSED:
+        raise HTTPException(status_code=400, detail="Zakázka není uzavřená.")
+    order.status = OrderStatus.OPEN
+    order.date_closed = None
+    db.commit()
+    db.refresh(order)
+    return order

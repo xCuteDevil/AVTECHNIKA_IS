@@ -1660,6 +1660,38 @@ function OrdersView() {
     }
   };
 
+  const handleDeleteOrder = async (orderId) => {
+    if (!confirm("Opravdu zcela odstranit tuto zakázku včetně položek?")) return;
+    const res = await fetch(`${API_BASE}/orders/${orderId}`, { method: "DELETE" });
+    if (res.status === 204) {
+      await loadAll();
+    } else {
+      try {
+        const err = await res.json();
+        alert("Smazání zakázky selhalo: " + (err.detail || res.statusText));
+      } catch {
+        alert("Smazání zakázky selhalo.");
+      }
+    }
+  };
+
+  const handleReopenOrder = async (orderId) => {
+    const res = await fetch(`${API_BASE}/orders/${orderId}/reopen`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+    });
+    if (res.ok) {
+      await loadAll();
+    } else {
+      try {
+        const err = await res.json();
+        alert("Znovuotevření selhalo: " + (err.detail || res.statusText));
+      } catch {
+        alert("Znovuotevření selhalo.");
+      }
+    }
+  };
+
   const handleReturnLoan = async (loanId, orderId) => {
     const res = await fetch(`${API_BASE}/loans/${loanId}/return`, {
       method: "PATCH",
@@ -2203,26 +2235,52 @@ function OrdersView() {
                   <Td>{formatDateTime(o.date_due)}</Td>
                   <Td>{formatDateTime(o.return_at)}</Td>
                   <Td>
-                    <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <IconBtn
+                        title="Upravit údaje"
+                        onClick={() => {
+                          if (editOrderId === o.id) {
+                            // druhé kliknutí: ukonči editaci bez uložení
+                            cancelEditOrder();
+                          } else {
+                            setExpandedOrder(o.id);
+                            startEditOrder(o);
+                          }
+                        }}
+                      >
+                        <Svg.Edit />
+                      </IconBtn>
+                      <IconBtn
+                        title="Skenovat (QR) – přidat položky"
+                        onClick={() => {
+                          setExpandedOrder(o.id);
+                          setScanOrderId(o.id);
+                        }}
+                        className=""
+                      >
+                        <Svg.Scan />
+                      </IconBtn>
                       {o.status === "OPEN" ? (
-                        <>
-                        <button
+                        <IconBtn
+                          title="Uzavřít zakázku"
                           onClick={() => handleClose(o.id)}
-                            className="w-full px-3 py-1 rounded-md bg-emerald-500 hover:bg-emerald-600 text-xs font-medium"
                         >
-                          Uzavřít zakázku
-                        </button>
-                          <button
-                            onClick={() => {
-                              setExpandedOrder(o.id);
-                              setScanOrderId(o.id);
-                            }}
-                            className="w-full px-3 py-1 rounded-md bg-indigo-500 hover:bg-indigo-600 text-xs font-medium"
-                          >
-                            Skenovat (QR) – přidat položky
-                          </button>
-                        </>
+                          <Svg.Close />
+                        </IconBtn>
+                      ) : o.status === "CLOSED" ? (
+                        <IconBtn
+                          title="Znovu otevřít zakázku"
+                          onClick={() => handleReopenOrder(o.id)}
+                        >
+                          <Svg.Reopen />
+                        </IconBtn>
                       ) : null}
+                      <IconBtn
+                        title="Smazat zakázku"
+                        onClick={() => handleDeleteOrder(o.id)}
+                      >
+                        <Svg.Trash />
+                      </IconBtn>
                     </div>
                   </Td>
                   <Td>
@@ -2628,4 +2686,49 @@ function Td({ children, className = "", ...rest }) {
   );
 }
 
+// --- Ikonová tlačítka (inline SVG, bez externích závislostí) ---
+function IconBtn({ title, onClick, children, className = "", disabled }) {
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      aria-label={title}
+      disabled={disabled}
+      className={
+        "inline-flex items-center justify-center w-8 h-8 rounded-md border border-slate-700 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 " +
+        className
+      }
+    >
+      {children}
+    </button>
+  );
+}
+
+const Svg = {
+  Edit: () => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 text-amber-400">
+      <path d="M16.862 3.487a1.5 1.5 0 0 1 2.121 0l1.53 1.53a1.5 1.5 0 0 1 0 2.121l-9.9 9.9a1.5 1.5 0 0 1-1.06.44H6a1 1 0 0 1-1-1v-3.553a1.5 1.5 0 0 1 .44-1.06l9.9-9.9Zm-2.121 2.122-9.9 9.9V17h1.49l9.9-9.9-1.49-1.49Z"/>
+    </svg>
+  ),
+  Scan: () => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 text-indigo-400">
+      <path d="M4 6a2 2 0 0 1 2-2h3v2H6v3H4V6Zm10-2h3a2 2 0 0 1 2 2v3h-2V6h-3V4ZM6 16H4v3a2 2 0 0 0 2 2h3v-2H6v-3Zm12 0v3h-3v2h3a2 2 0 0 0 2-2v-3h-2Zm-11-3h10v2H7v-2Z"/>
+    </svg>
+  ),
+  Close: () => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 text-emerald-400">
+      <path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2Z"/>
+    </svg>
+  ),
+  Trash: () => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 text-rose-400">
+      <path d="M9 3h6a1 1 0 0 1 1 1v1h4v2H4V5h4V4a1 1 0 0 1 1-1Zm-3 6h12l-1 11a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L6 9Zm3 2v8h2v-8H9Zm4 0v8h2v-8h-2Z"/>
+    </svg>
+  ),
+  Reopen: () => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 text-amber-400">
+      <path d="M12 6V3L8 7l4 4V8c3.31 0 6 2.69 6 6a6 6 0 1 1-6-6Z"/>
+    </svg>
+  ),
+};
 export default App;
