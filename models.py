@@ -78,6 +78,9 @@ class Order(Base):
     date_out = Column(DateTime, default=datetime.utcnow)
     date_due = Column(DateTime, nullable=False)
     date_closed = Column(DateTime, nullable=True)
+    # Logistické okno blokace techniky
+    depart_at = Column(DateTime, nullable=True)   # odjezd techniky
+    return_at = Column(DateTime, nullable=True)   # návrat techniky
 
     event_name = Column(String(255))
     event_location = Column(String(255))

@@ -184,7 +184,7 @@ function ItemsView() {
   const getCustomerName = (id) =>
     customers.find((c) => c.id === id)?.name || `#${id}`;
   const formatDateTime = (s) =>
-    s ? new Date(s).toLocaleString("cs-CZ") : "-";
+    s ? new Date(s).toLocaleDateString("cs-CZ") : "-";
   const loadHistory = async (itemId) => {
     const res = await fetch(`${API_BASE}/items/${itemId}/loans`);
     if (res.ok) {
@@ -1177,7 +1177,7 @@ function LoansView() {
     customers.find((c) => c.id === id)?.name || `#${id}`;
 
   const formatDateTime = (s) =>
-    s ? new Date(s).toLocaleString("cs-CZ") : "-";
+    s ? new Date(s).toLocaleDateString("cs-CZ") : "-";
 
   return (
     <section>
@@ -1322,10 +1322,22 @@ function OrdersView() {
   const [customerOrdersById, setCustomerOrdersById] = useState({});
   const [openHistoryOrders, setOpenHistoryOrders] = useState({});
   const [scanInfo, setScanInfo] = useState("");
+  const [editOrderId, setEditOrderId] = useState(null);
+  const [editOrderForm, setEditOrderForm] = useState({
+    date_out: "",
+    date_due: "",
+    depart_at: "",
+    return_at: "",
+    event_name: "",
+    event_location: "",
+    note: "",
+  });
   const [form, setForm] = useState({
     customer_id: "",
     date_due: "",
     date_out: "",
+    depart_at: "",
+    return_at: "",
     event_name: "",
     event_location: "",
     note: "",
@@ -1354,10 +1366,34 @@ function OrdersView() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    // Local validation: depart_at <= date_out and return_at >= date_due
+    const departIso = form.depart_at || form.date_out;
+    const startIso = form.date_out;
+    const endIso = form.date_due;
+    const returnIso = form.return_at || form.date_due;
+    const toUtcTs = (d) => {
+      const [y, m, day] = d.split("-").map((x) => Number(x));
+      return Date.UTC(y, m - 1, day);
+    };
+    const isIso = (d) => /^\d{4}-\d{2}-\d{2}$/.test(String(d || ""));
+    if (departIso && startIso && isIso(departIso) && isIso(startIso)) {
+      if (toUtcTs(departIso) > toUtcTs(startIso)) {
+        alert("Odjezd techniky nemůže být po začátku akce.");
+        return;
+      }
+    }
+    if (endIso && returnIso && isIso(endIso) && isIso(returnIso)) {
+      if (toUtcTs(returnIso) < toUtcTs(endIso)) {
+        alert("Návrat techniky nemůže být před koncem akce.");
+        return;
+      }
+    }
     const payload = {
       customer_id: Number(form.customer_id),
       date_due: form.date_due ? form.date_due + "T00:00:00" : null,
       date_out: form.date_out ? form.date_out + "T00:00:00" : null,
+      depart_at: form.depart_at ? form.depart_at + "T00:00:00" : null,
+      return_at: form.return_at ? form.return_at + "T00:00:00" : null,
       event_name: form.event_name,
       event_location: form.event_location,
       note: form.note,
@@ -1410,6 +1446,8 @@ function OrdersView() {
         customer_id: "",
         date_due: "",
         date_out: "",
+        depart_at: "",
+        return_at: "",
         event_name: "",
         event_location: "",
         note: "",
@@ -1453,7 +1491,14 @@ function OrdersView() {
     items.find((i) => i.id === id)?.accessories || [];
 
   const formatDateTime = (s) =>
-    s ? new Date(s).toLocaleString("cs-CZ") : "-";
+    s ? new Date(s).toLocaleDateString("cs-CZ") : "-";
+  const formatDateInput = (s) => {
+    if (!s) return "";
+    const str = String(s);
+    // Extract YYYY-MM-DD from ISO-like string without timezone conversion
+    const m = str.match(/^(\d{4}-\d{2}-\d{2})/);
+    return m ? m[1] : "";
+  };
 
   const statusLabels = {
     OPEN: "Otevřená",
@@ -1465,6 +1510,123 @@ function OrdersView() {
     OPEN: "text-amber-300",
     CLOSED: "text-emerald-300",
     CANCELLED: "text-rose-300",
+  };
+
+  const isValidISODate = (d) => {
+    if (!d || typeof d !== "string") return false;
+    // Expect strict YYYY-MM-DD
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return false;
+    const [yStr, mStr, dayStr] = d.split("-");
+    const y = Number(yStr), m = Number(mStr), day = Number(dayStr);
+    if (!Number.isInteger(y) || !Number.isInteger(m) || !Number.isInteger(day)) return false;
+    if (m < 1 || m > 12) return false;
+    if (day < 1 || day > 31) return false;
+    // Validate using UTC to avoid timezone shifts
+    const dt = new Date(Date.UTC(y, m - 1, day));
+    return (
+      dt.getUTCFullYear() === y &&
+      dt.getUTCMonth() + 1 === m &&
+      dt.getUTCDate() === day
+    );
+  };
+
+  const startEditOrder = (o) => {
+    setEditOrderId(o.id);
+    setEditOrderForm({
+      date_out: formatDateInput(o.date_out),
+      date_due: formatDateInput(o.date_due),
+      depart_at: formatDateInput(o.depart_at || o.date_out),
+      return_at: formatDateInput(o.return_at || o.date_due),
+      event_name: o.event_name || "",
+      event_location: o.event_location || "",
+      note: o.note || "",
+    });
+  };
+  const cancelEditOrder = () => {
+    setEditOrderId(null);
+    setEditOrderForm({
+      date_out: "",
+      date_due: "",
+      depart_at: "",
+      return_at: "",
+      event_name: "",
+      event_location: "",
+      note: "",
+    });
+  };
+  const handleEditOrderChange = (e) => {
+    const { name, value } = e.target;
+    setEditOrderForm((f) => ({ ...f, [name]: value }));
+  };
+  const saveEditOrder = async (orderId) => {
+    // Validation – prevent invalid dates (e.g., 29.02 on non-leap year)
+    const fieldsToCheck = ["depart_at", "date_out", "date_due", "return_at"];
+    for (const f of fieldsToCheck) {
+      const v = editOrderForm[f];
+      if (v && !isValidISODate(v)) {
+        alert(`Neplatné datum ve poli: ${f}. Oprav prosím formát/den.`);
+        return;
+      }
+    }
+    // Logical validation
+    const toUtcTs2 = (d) => {
+      const [y, m, day] = d.split("-").map((x) => Number(x));
+      return Date.UTC(y, m - 1, day);
+    };
+    if (editOrderForm.depart_at && editOrderForm.date_out) {
+      if (toUtcTs2(editOrderForm.depart_at) > toUtcTs2(editOrderForm.date_out)) {
+        alert("Odjezd techniky nemůže být po začátku akce.");
+        return;
+      }
+    }
+    if (editOrderForm.return_at && editOrderForm.date_due) {
+      if (toUtcTs2(editOrderForm.return_at) < toUtcTs2(editOrderForm.date_due)) {
+        alert("Návrat techniky nemůže být před koncem akce.");
+        return;
+      }
+    }
+    // Posílej pouze vyplněná pole; vyhne se to 422 při prázdných datech
+    const payload = {
+      date_out: editOrderForm.date_out ? editOrderForm.date_out + "T00:00:00" : undefined,
+      date_due: editOrderForm.date_due ? editOrderForm.date_due + "T00:00:00" : undefined,
+      depart_at: editOrderForm.depart_at ? editOrderForm.depart_at + "T00:00:00" : undefined,
+      return_at: editOrderForm.return_at ? editOrderForm.return_at + "T00:00:00" : undefined,
+      event_name: editOrderForm.event_name,
+      event_location: editOrderForm.event_location,
+      note: editOrderForm.note,
+    };
+    const res = await fetch(`${API_BASE}/orders/${orderId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (res.ok) {
+      let updated = null;
+      try {
+        updated = await res.json();
+      } catch {}
+      if (updated && typeof updated === "object") {
+        setOrders((prev) =>
+          Array.isArray(prev)
+            ? prev.map((o) => (o.id === updated.id ? updated : o))
+            : prev
+        );
+      } else {
+        await loadAll();
+      }
+      setEditOrderId(null);
+      setScanInfo("Údaje zakázky byly upraveny.");
+    } else {
+      try {
+        const err = await res.json();
+        const detail = Array.isArray(err?.detail)
+          ? err.detail.map((d) => d?.msg || JSON.stringify(d)).join("; ")
+          : (typeof err?.detail === "string" ? err.detail : JSON.stringify(err));
+        alert("Upravení zakázky selhalo: " + (detail || res.statusText));
+      } catch {
+        alert("Upravení zakázky selhalo.");
+      }
+    }
   };
 
   const handleClose = async (id) => {
@@ -1794,11 +1956,23 @@ function OrdersView() {
 
         <input
           type="date"
+          name="depart_at"
+          value={form.depart_at}
+          onChange={handleChange}
+          required
+          className="px-3 py-2 rounded-md bg-slate-800 border border-slate-700 text-sm"
+          placeholder="Odjezd techniky"
+          title="Odjezd techniky"
+        />
+        <input
+          type="date"
           name="date_out"
           value={form.date_out}
           onChange={handleChange}
           required
           className="px-3 py-2 rounded-md bg-slate-800 border border-slate-700 text-sm"
+          placeholder="Začátek akce"
+          title="Začátek akce"
         />
         <input
           type="date"
@@ -1807,6 +1981,18 @@ function OrdersView() {
           onChange={handleChange}
           required
           className="px-3 py-2 rounded-md bg-slate-800 border border-slate-700 text-sm"
+          placeholder="Konec akce"
+          title="Konec akce"
+        />
+        <input
+          type="date"
+          name="return_at"
+          value={form.return_at}
+          onChange={handleChange}
+          required
+          className="px-3 py-2 rounded-md bg-slate-800 border border-slate-700 text-sm"
+          placeholder="Návrat techniky"
+          title="Návrat techniky"
         />
 
         <input
@@ -1974,8 +2160,10 @@ function OrdersView() {
               <Th>Kontaktní osoba</Th>
               <Th>Název akce</Th>
               <Th>Místo akce</Th>
-              <Th>Od</Th>
-              <Th>Do</Th>
+              <Th>Odjezd techniky</Th>
+              <Th>Začátek Akce</Th>
+              <Th>Konec Akce</Th>
+              <Th>Návrat techniky</Th>
               <Th>Akce</Th>
               <Th>Status</Th>
             </tr>
@@ -2010,8 +2198,10 @@ function OrdersView() {
                   </Td>
                   <Td>{o.event_name || "-"}</Td>
                   <Td>{o.event_location || "-"}</Td>
+                  <Td>{formatDateTime(o.depart_at)}</Td>
                   <Td>{formatDateTime(o.date_out)}</Td>
                   <Td>{formatDateTime(o.date_due)}</Td>
+                  <Td>{formatDateTime(o.return_at)}</Td>
                   <Td>
                     <div className="space-y-1">
                       {o.status === "OPEN" ? (
@@ -2059,8 +2249,10 @@ function OrdersView() {
                                 <Th>ID zakázky</Th>
                                 <Th>Název akce</Th>
                                 <Th>Místo</Th>
-                                <Th>Od</Th>
-                                <Th>Do</Th>
+                                <Th>Odjezd techniky</Th>
+                                <Th>Začátek Akce</Th>
+                                <Th>Konec Akce</Th>
+                                <Th>Návrat techniky</Th>
                                 <Th>Status</Th>
                               </tr>
                             </thead>
@@ -2085,8 +2277,10 @@ function OrdersView() {
                                   </Td>
                                   <Td>{ord.event_name || "-"}</Td>
                                   <Td>{ord.event_location || "-"}</Td>
+                                  <Td>{formatDateTime(ord.depart_at)}</Td>
                                   <Td>{formatDateTime(ord.date_out)}</Td>
                                   <Td>{formatDateTime(ord.date_due)}</Td>
+                                  <Td>{formatDateTime(ord.return_at)}</Td>
                                   <Td>
                                     <span
                                       className={`text-xs font-semibold ${
@@ -2149,6 +2343,87 @@ function OrdersView() {
                   <tr className="border-t border-slate-800 bg-slate-900/60">
                     <Td colSpan={8}>
                       <div className="space-y-4">
+                        <div className="flex flex-wrap items-center gap-3">
+                          {editOrderId === o.id ? (
+                            <>
+                              <input
+                                type="date"
+                                name="depart_at"
+                                value={editOrderForm.depart_at}
+                                onChange={handleEditOrderChange}
+                                className="px-3 py-2 rounded-md bg-slate-800 border border-slate-700 text-sm"
+                                title="Odjezd techniky"
+                              />
+                              <input
+                                type="date"
+                                name="date_out"
+                                value={editOrderForm.date_out}
+                                onChange={handleEditOrderChange}
+                                className="px-3 py-2 rounded-md bg-slate-800 border border-slate-700 text-sm"
+                                title="Začátek akce"
+                              />
+                              <input
+                                type="date"
+                                name="date_due"
+                                value={editOrderForm.date_due}
+                                onChange={handleEditOrderChange}
+                                className="px-3 py-2 rounded-md bg-slate-800 border border-slate-700 text-sm"
+                                title="Konec akce"
+                              />
+                              <input
+                                type="date"
+                                name="return_at"
+                                value={editOrderForm.return_at}
+                                onChange={handleEditOrderChange}
+                                className="px-3 py-2 rounded-md bg-slate-800 border border-slate-700 text-sm"
+                                title="Návrat techniky"
+                              />
+                              <input
+                                name="event_name"
+                                value={editOrderForm.event_name}
+                                onChange={handleEditOrderChange}
+                                placeholder="Název akce"
+                                className="px-3 py-2 rounded-md bg-slate-800 border border-slate-700 text-sm flex-1 min-w-[160px]"
+                              />
+                              <input
+                                name="event_location"
+                                value={editOrderForm.event_location}
+                                onChange={handleEditOrderChange}
+                                placeholder="Místo akce"
+                                className="px-3 py-2 rounded-md bg-slate-800 border border-slate-700 text-sm flex-1 min-w-[160px]"
+                              />
+                              <input
+                                name="note"
+                                value={editOrderForm.note}
+                                onChange={handleEditOrderChange}
+                                placeholder="Poznámka"
+                                className="px-3 py-2 rounded-md bg-slate-800 border border-slate-700 text-sm flex-1 min-w-[160px]"
+                              />
+                              <button
+                                onClick={() => saveEditOrder(o.id)}
+                                className="px-3 py-2 rounded-md bg-emerald-500 hover:bg-emerald-600 text-sm font-medium"
+                              >
+                                Uložit
+                              </button>
+                              <button
+                                onClick={cancelEditOrder}
+                                className="px-3 py-2 rounded-md bg-slate-700 hover:bg-slate-600 text-sm font-medium"
+                              >
+                                Zrušit
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => startEditOrder(o)}
+                                className="px-3 py-2 rounded-md bg-amber-500 hover:bg-amber-600 text-sm font-medium"
+                              >
+                                Upravit údaje
+                              </button>
+                            </>
+                          )}
+                        </div>
+
                         <div className="flex flex-wrap items-center gap-3">
                           <input
                             value={scanInputs[o.id] || ""}

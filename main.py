@@ -32,8 +32,30 @@ from datetime import datetime
 
 
 
-# Pro SQLite vývoj: vytvoří tabulky, pokud ještě neexistují
+# Pro SQLite vývoj: vytvoří tabulky, pokud ještě neexistují, a provede jednoduché migrace
 Base.metadata.create_all(bind=engine)
+
+def _ensure_order_logistics_columns():
+    # SQLite: přidáme sloupce depart_at, return_at, pokud neexistují, a vyplníme je z date_out/date_due
+    try:
+        with engine.connect() as conn:
+            info = conn.exec_driver_sql("PRAGMA table_info(orders)").fetchall()
+            cols = {row[1] for row in info}  # row[1] = name
+            if "depart_at" not in cols:
+                conn.exec_driver_sql("ALTER TABLE orders ADD COLUMN depart_at DATETIME NULL")
+            if "return_at" not in cols:
+                conn.exec_driver_sql("ALTER TABLE orders ADD COLUMN return_at DATETIME NULL")
+            # backfill, pouze pokud jsou NULL
+            conn.exec_driver_sql("""
+                UPDATE orders
+                SET depart_at = COALESCE(depart_at, date_out),
+                    return_at = COALESCE(return_at, date_due)
+            """)
+    except Exception:
+        # nechceme blokovat běh, když PRAGMA/ALTER není dostupný
+        pass
+
+_ensure_order_logistics_columns()
 
 app = FastAPI(title="AV Technika IS")
 
@@ -166,6 +188,8 @@ class OrderBase(BaseModel):
     customer_id: int
     date_due: datetime
     date_out: Optional[datetime] = None
+    depart_at: Optional[datetime] = None
+    return_at: Optional[datetime] = None
     event_name: Optional[str] = None
     event_location: Optional[str] = None
     note: Optional[str] = None
@@ -174,6 +198,16 @@ class OrderBase(BaseModel):
 class OrderCreate(OrderBase):
     code: Optional[str] = None
 
+
+class OrderUpdate(BaseModel):
+    # povolíme editovat běžné údaje zakázky
+    date_out: Optional[datetime] = None
+    date_due: Optional[datetime] = None
+    depart_at: Optional[datetime] = None
+    return_at: Optional[datetime] = None
+    event_name: Optional[str] = None
+    event_location: Optional[str] = None
+    note: Optional[str] = None
 
 class OrderAddItem(BaseModel):
     item_code: str
@@ -212,6 +246,8 @@ class OrderOut(BaseModel):
     created_at: datetime
     date_out: datetime
     date_due: datetime
+    depart_at: Optional[datetime] = None
+    return_at: Optional[datetime] = None
     date_closed: Optional[datetime] = None
     event_name: Optional[str] = None
     event_location: Optional[str] = None
@@ -594,16 +630,33 @@ def create_loan(loan_in: LoanCreate, db: Session = Depends(get_db)):
     if not customer:
         raise HTTPException(status_code=404, detail="Zákazník nenalezen.")
 
-    # 3) Zkontrolovat, že položka není právě vypůjčená
-    existing = (
+    # 3) Nastavit plánované okno výpůjčky a zkontrolovat překryv s jinými výpůjčkami
+    if order is not None:
+        new_start = order.depart_at or order.date_out or datetime.utcnow()
+        new_end = order.return_at or order.date_due
+    else:
+        new_start = datetime.utcnow()
+        new_end = loan_in.date_due
+    if new_end is None:
+        raise HTTPException(status_code=400, detail="Chybí datum konce výpůjčky.")
+    # Překryv je, pokud (existing_start < new_end) AND (existing_end > new_start)
+    # Použijeme logistické okno existujících výpůjček přes navázanou zakázku:
+    # existing_start = COALESCE(Order.depart_at, Loan.date_out)
+    # existing_end   = COALESCE(Loan.date_in, Order.return_at, Loan.date_due)
+    existing_start = func.coalesce(Order.depart_at, Loan.date_out)
+    existing_end = func.coalesce(Loan.date_in, Order.return_at, Loan.date_due)
+    q = (
         db.query(Loan)
-        .filter(Loan.item_id == loan_in.item_id, Loan.date_in.is_(None))
-        .first()
+        .outerjoin(Order, Loan.order_id == Order.id)
+        .filter(Loan.item_id == item.id)
     )
-    if existing:
+    if order is not None:
+        q = q.filter(Loan.order_id != order.id)
+    conflict = q.filter(existing_start < new_end).filter(existing_end > new_start).first()
+    if conflict:
         raise HTTPException(
             status_code=400,
-            detail="Položka je již vypůjčená (existuje aktivní výpůjčka).",
+            detail="Položka je rezervovaná/vypůjčená v překrývajícím se termínu.",
         )
 
     # 4) Provizorně systémový uživatel
@@ -614,7 +667,8 @@ def create_loan(loan_in: LoanCreate, db: Session = Depends(get_db)):
         item_id=item.id,
         customer_id=customer.id,
         issued_by=system_user.id,
-        date_due=loan_in.date_due,
+        date_out=new_start,
+        date_due=new_end,
         condition_out=loan_in.condition_out,
         note=loan_in.note,
         order_id=loan_in.order_id,
@@ -694,13 +748,15 @@ def unreturn_loan(loan_id: int, db: Session = Depends(get_db)):
     # Kolizní kontrola: nesmí existovat jiná aktivní výpůjčka stejné položky v překryvu
     new_start = loan.date_out
     new_end = loan.date_due
-    end_col = func.coalesce(Loan.date_in, Loan.date_due)
+    existing_start = func.coalesce(Order.depart_at, Loan.date_out)
+    existing_end = func.coalesce(Loan.date_in, Order.return_at, Loan.date_due)
     conflict = (
         db.query(Loan)
+        .outerjoin(Order, Loan.order_id == Order.id)
         .filter(Loan.item_id == loan.item_id)
         .filter(Loan.id != loan.id)
-        .filter(Loan.date_out <= new_end)
-        .filter(end_col >= new_start)
+        .filter(existing_start < new_end)
+        .filter(existing_end > new_start)
         .filter(Loan.date_in.is_(None))
         .first()
     )
@@ -742,11 +798,24 @@ def create_order(order_in: OrderCreate, db: Session = Depends(get_db)):
     if not customer:
         raise HTTPException(status_code=404, detail="Zákazník nenalezen.")
 
+    # Finalize times and validate logical constraints
+    date_out = order_in.date_out or datetime.utcnow()
+    date_due = order_in.date_due
+    depart_at = order_in.depart_at if order_in.depart_at is not None else date_out
+    return_at = order_in.return_at if order_in.return_at is not None else date_due
+
+    if depart_at > date_out:
+        raise HTTPException(status_code=400, detail="Odjezd techniky nemůže být po začátku akce.")
+    if return_at < date_due:
+        raise HTTPException(status_code=400, detail="Návrat techniky nemůže být před koncem akce.")
+
     order = Order(
         code=order_in.code,
         customer_id=order_in.customer_id,
-        date_due=order_in.date_due,
-        date_out=order_in.date_out or datetime.utcnow(),
+        date_due=date_due,
+        date_out=date_out,
+        depart_at=depart_at,
+        return_at=return_at,
         event_name=order_in.event_name,
         event_location=order_in.event_location,
         note=order_in.note,
@@ -781,6 +850,32 @@ def get_order(order_id: int, db: Session = Depends(get_db)):
     order = db.query(Order).get(order_id)
     if not order:
         raise HTTPException(status_code=404, detail="Zakázka nenalezena.")
+    return order
+
+
+@app.put("/orders/{order_id}", response_model=OrderOut)
+def update_order(order_id: int, upd: OrderUpdate, db: Session = Depends(get_db)):
+    order = db.query(Order).get(order_id)
+    if not order:
+        raise HTTPException(status_code=404, detail="Zakázka nenalezena.")
+    data = upd.dict(exclude_unset=True)
+    # Nastavit hodnoty; přímé přiřazení je ok (neřešíme zde kolizní validace – kontrolujeme až při přidávání položek)
+    for k, v in data.items():
+        setattr(order, k, v)
+    # Pokud chybí depart/return, můžeme je udržovat v konzistenci s date_out/date_due
+    if "date_out" in data and order.depart_at is None:
+        order.depart_at = order.date_out
+    if "date_due" in data and order.return_at is None:
+        order.return_at = order.date_due
+    # Logické ověření konzistence
+    if order.depart_at is not None and order.date_out is not None:
+        if order.depart_at > order.date_out:
+            raise HTTPException(status_code=400, detail="Odjezd techniky nemůže být po začátku akce.")
+    if order.return_at is not None and order.date_due is not None:
+        if order.return_at < order.date_due:
+            raise HTTPException(status_code=400, detail="Návrat techniky nemůže být před koncem akce.")
+    db.commit()
+    db.refresh(order)
     return order
 
 
@@ -826,16 +921,21 @@ def add_item_to_order(
 
     # Ověřit, že se nekrývá s jinou výpůjčkou/rezervací stejného kusu.
     # Bereme plánované rozmezí nové výpůjčky z termínů zakázky.
-    new_start = order.date_out or datetime.utcnow()
-    new_end = order.date_due
-    # existuje-li konflikt: (loan.date_out <= new_end) AND (coalesce(loan.date_in, loan.date_due) >= new_start)
-    end_col = func.coalesce(Loan.date_in, Loan.date_due)
+    # Blokace podle logistického okna (depart_at → return_at), fallback na date_out/date_due
+    new_start = (order.depart_at or order.date_out or datetime.utcnow())
+    new_end = (order.return_at or order.date_due)
+    new_start = (order.depart_at or order.date_out or datetime.utcnow())
+    new_end = (order.return_at or order.date_due)
+    # existuje-li konflikt: (loan.date_out < new_end) AND (coalesce(loan.date_in, loan.date_due) > new_start)
+    existing_start = func.coalesce(Order.depart_at, Loan.date_out)
+    existing_end = func.coalesce(Loan.date_in, Order.return_at, Loan.date_due)
     conflict = (
         db.query(Loan)
+        .outerjoin(Order, Loan.order_id == Order.id)
         .filter(Loan.item_id == item.id)
         .filter(Loan.order_id != order.id if True else True)  # jen pro jistotu
-        .filter(Loan.date_out <= new_end)
-        .filter(end_col >= new_start)
+        .filter(existing_start < new_end)
+        .filter(existing_end > new_start)
         .first()
     )
     if conflict:
