@@ -111,6 +111,9 @@ class ItemOut(ItemBase):
         is_required: bool
         model_config = ConfigDict(from_attributes=True)
     accessories: List[AccessoryMini] = []
+    status_now: Optional[str] = None  # VE_SKLADU | NA_CESTE_NA_AKCI | NA_AKCI | NA_CESTE_Z_AKCE | MIMO_SKLAD
+    active_order_id: Optional[int] = None
+    active_order_event_name: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
 
 class ItemUpdate(BaseModel):
@@ -391,6 +394,50 @@ def list_items(include_inactive: bool = False, db: Session = Depends(get_db)):
             .order_by(Item.id)
             .all()
         )
+    # Vypočítat aktuální stav položky podle aktivní výpůjčky a oken zakázky
+    now = datetime.utcnow()
+    active_rows = (
+        db.query(Loan, Order)
+        .outerjoin(Order, Loan.order_id == Order.id)
+        .filter(Loan.date_in.is_(None))
+        .all()
+    )
+    by_item: dict[int, tuple[Loan, Optional[Order]]] = {}
+    for loan, order in active_rows:
+        # pokud by teoreticky bylo víc aktivních, vezmeme první
+        if loan.item_id not in by_item:
+            by_item[loan.item_id] = (loan, order)
+    for it in items:
+        loan_order = by_item.get(it.id)
+        if not loan_order:
+            setattr(it, "status_now", "VE_SKLADU")
+            continue
+        loan, order = loan_order
+        depart_at = (order.depart_at if order else None) or loan.date_out
+        start_at = (order.date_out if order else None) or loan.date_out
+        end_at = (order.date_due if order else None) or loan.date_due
+        return_at = (order.return_at if order else None) or loan.date_due
+        status = "MIMO_SKLAD"
+        try:
+            if depart_at and now < depart_at:
+                status = "VE_SKLADU"
+            elif depart_at and start_at and depart_at <= now < start_at:
+                status = "NA_CESTE_NA_AKCI"
+            elif start_at and end_at and start_at <= now < end_at:
+                status = "NA_AKCI"
+            elif end_at and return_at and end_at <= now < return_at:
+                status = "NA_CESTE_Z_AKCE"
+            else:
+                status = "MIMO_SKLAD"
+        except Exception:
+            status = "MIMO_SKLAD"
+        setattr(it, "status_now", status)
+        if order:
+            setattr(it, "active_order_id", order.id)
+            setattr(it, "active_order_event_name", order.event_name)
+        else:
+            setattr(it, "active_order_id", loan.order_id)
+            setattr(it, "active_order_event_name", None)
     return items
 
 @app.get("/items/{item_id}/loans", response_model=List[LoanOut])

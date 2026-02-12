@@ -131,6 +131,33 @@ function ItemsView() {
   const [orderDetailsById, setOrderDetailsById] = useState({});
   const [orderLoansById, setOrderLoansById] = useState({});
   const [openHistoryOrders, setOpenHistoryOrders] = useState({});
+  const [sortBy, setSortBy] = useState("id"); // id | code | name | category | status
+  const [sortDir, setSortDir] = useState("asc"); // asc | desc
+
+  const toggleSort = (key) => {
+    if (sortBy === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortBy(key);
+      setSortDir("asc");
+    }
+  };
+
+  const statusRank = (code) => {
+    switch (code) {
+      case "VE_SKLADU":
+        return 0; // nahoře
+      case "NA_CESTE_NA_AKCI":
+        return 1;
+      case "NA_AKCI":
+        return 2;
+      case "NA_CESTE_Z_AKCE":
+        return 3;
+      case "MIMO_SKLAD":
+      default:
+        return 4;
+    }
+  };
 
   const parseItemFromQr = (text) => {
     const raw = (text ?? "").trim();
@@ -675,16 +702,90 @@ function ItemsView() {
         <table className="min-w-full text-sm">
           <thead className="bg-slate-800/80">
             <tr>
-              <Th>ID</Th>
-              <Th>Kód</Th>
-              <Th>Název</Th>
-              <Th>Kategorie</Th>
+              <Th>
+                <button
+                  type="button"
+                  onClick={() => toggleSort("id")}
+                  className="inline-flex items-center gap-1 hover:underline"
+                  title="Seřadit podle ID"
+                >
+                  ID {sortBy === "id" ? (sortDir === "asc" ? "▲" : "▼") : ""}
+                </button>
+              </Th>
+              <Th>
+                <button
+                  type="button"
+                  onClick={() => toggleSort("code")}
+                  className="inline-flex items-center gap-1 hover:underline"
+                  title="Seřadit podle kódu"
+                >
+                  Kód {sortBy === "code" ? (sortDir === "asc" ? "▲" : "▼") : ""}
+                </button>
+              </Th>
+              <Th>
+                <button
+                  type="button"
+                  onClick={() => toggleSort("name")}
+                  className="inline-flex items-center gap-1 hover:underline"
+                  title="Seřadit podle názvu"
+                >
+                  Název {sortBy === "name" ? (sortDir === "asc" ? "▲" : "▼") : ""}
+                </button>
+              </Th>
+              <Th>
+                <button
+                  type="button"
+                  onClick={() => toggleSort("category")}
+                  className="inline-flex items-center gap-1 hover:underline"
+                  title="Seřadit podle kategorie"
+                >
+                  Kategorie {sortBy === "category" ? (sortDir === "asc" ? "▲" : "▼") : ""}
+                </button>
+              </Th>
+              <Th>
+                <button
+                  type="button"
+                  onClick={() => toggleSort("status")}
+                  className="inline-flex items-center gap-1 hover:underline"
+                  title="Seřadit podle stavu"
+                >
+                  Stav {sortBy === "status" ? (sortDir === "asc" ? "▲" : "▼") : ""}
+                </button>
+              </Th>
               <Th>Součástí</Th>
               <Th>Akce</Th>
             </tr>
           </thead>
           <tbody>
-            {items.map((it) => (
+            {[...items]
+              .sort((a, b) => {
+                let av;
+                let bv;
+                if (sortBy === "status") {
+                  av = statusRank(a.status_now);
+                  bv = statusRank(b.status_now);
+                } else if (sortBy === "code") {
+                  av = (a.code || "").toString().toLowerCase();
+                  bv = (b.code || "").toString().toLowerCase();
+                } else if (sortBy === "name") {
+                  av = (a.name || "").toString().toLowerCase();
+                  bv = (b.name || "").toString().toLowerCase();
+                } else if (sortBy === "category") {
+                  av = (a.category || "").toString().toLowerCase();
+                  bv = (b.category || "").toString().toLowerCase();
+                } else {
+                  av = Number(a.id) || 0;
+                  bv = Number(b.id) || 0;
+                }
+                let cmp = 0;
+                if (typeof av === "number" && typeof bv === "number") {
+                  cmp = av - bv;
+                } else {
+                  cmp = String(av).localeCompare(String(bv), "cs", { sensitivity: "base", numeric: true });
+                }
+                return sortDir === "asc" ? cmp : -cmp;
+              })
+              .map((it) => (
               <Fragment key={it.id}>
               <tr
                 className="border-t border-slate-800 hover:bg-slate-800/40"
@@ -693,6 +794,43 @@ function ItemsView() {
                 <Td className="font-mono">{it.code}</Td>
                 <Td>{it.name}</Td>
                 <Td>{it.category}</Td>
+                <Td>
+                  {(() => {
+                    const code = it.status_now || "VE_SKLADU";
+                    const label =
+                      code === "VE_SKLADU" ? "Sklad" :
+                      code === "NA_CESTE_NA_AKCI" ? "Na cestě tam" :
+                      code === "NA_AKCI" ? "Na akci" :
+                      code === "NA_CESTE_Z_AKCE" ? "Na cestě zpět" :
+                      "Mimo sklad";
+                    const dot =
+                      code === "VE_SKLADU" ? "bg-emerald-400" :
+                      code === "NA_CESTE_NA_AKCI" ? "bg-amber-400" :
+                      code === "NA_AKCI" ? "bg-rose-400" :
+                      code === "NA_CESTE_Z_AKCE" ? "bg-violet-400" :
+                      "bg-slate-500";
+                    const text =
+                      code === "VE_SKLADU" ? "text-emerald-300" :
+                      code === "NA_CESTE_NA_AKCI" ? "text-amber-300" :
+                      code === "NA_AKCI" ? "text-rose-300" :
+                      code === "NA_CESTE_Z_AKCE" ? "text-violet-300" :
+                      "text-slate-300";
+                    const tip = it.active_order_event_name
+                      ? `Zakázka #${it.active_order_id} — ${it.active_order_event_name}`
+                      : it.active_order_id
+                      ? `Zakázka #${it.active_order_id}`
+                      : label;
+                    return (
+                      <span
+                        className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium bg-slate-800/40 ${text}`}
+                        title={tip}
+                      >
+                        <span className={`w-1.5 h-1.5 rounded-full ${dot}`} />
+                        {label}
+                      </span>
+                    );
+                  })()}
+                </Td>
                 <Td>
                 <div className="flex flex-wrap gap-1">
                   {(it.accessories || []).map((a) => (
