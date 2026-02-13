@@ -872,6 +872,8 @@ def create_order(order_in: OrderCreate, db: Session = Depends(get_db)):
     depart_at = order_in.depart_at if order_in.depart_at is not None else date_out
     return_at = order_in.return_at if order_in.return_at is not None else date_due
 
+    if date_due and date_out and date_out > date_due:
+        raise HTTPException(status_code=400, detail="Konec akce nemůže být před začátkem akce.")
     if depart_at > date_out:
         raise HTTPException(status_code=400, detail="Odjezd techniky nemůže být po začátku akce.")
     if return_at < date_due:
@@ -936,6 +938,9 @@ def update_order(order_id: int, upd: OrderUpdate, db: Session = Depends(get_db))
     if "date_due" in data and order.return_at is None:
         order.return_at = order.date_due
     # Logické ověření konzistence
+    if order.date_out is not None and order.date_due is not None:
+        if order.date_out > order.date_due:
+            raise HTTPException(status_code=400, detail="Konec akce nemůže být před začátkem akce.")
     if order.depart_at is not None and order.date_out is not None:
         if order.depart_at > order.date_out:
             raise HTTPException(status_code=400, detail="Odjezd techniky nemůže být po začátku akce.")

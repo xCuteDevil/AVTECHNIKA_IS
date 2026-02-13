@@ -1772,6 +1772,13 @@ function OrdersView() {
       return Date.UTC(y, m - 1, day);
     };
     const isIso = (d) => /^\d{4}-\d{2}-\d{2}$/.test(String(d || ""));
+    // Začátek akce nesmí být po konci akce
+    if (startIso && endIso && isIso(startIso) && isIso(endIso)) {
+      if (toUtcTs(startIso) > toUtcTs(endIso)) {
+        alert("Začátek akce nemůže být po konci akce.");
+        return;
+      }
+    }
     if (departIso && startIso && isIso(departIso) && isIso(startIso)) {
       if (toUtcTs(departIso) > toUtcTs(startIso)) {
         alert("Odjezd techniky nemůže být po začátku akce.");
@@ -1972,6 +1979,12 @@ function OrdersView() {
       const [y, m, day] = d.split("-").map((x) => Number(x));
       return Date.UTC(y, m - 1, day);
     };
+    if (editOrderForm.date_out && editOrderForm.date_due) {
+      if (toUtcTs2(editOrderForm.date_out) > toUtcTs2(editOrderForm.date_due)) {
+        alert("Začátek akce nemůže být po konci akce.");
+        return;
+      }
+    }
     if (editOrderForm.depart_at && editOrderForm.date_out) {
       if (toUtcTs2(editOrderForm.depart_at) > toUtcTs2(editOrderForm.date_out)) {
         alert("Odjezd techniky nemůže být po začátku akce.");
