@@ -656,24 +656,28 @@ function ItemsView() {
         onSubmit={handleSubmit}
         className="flex flex-wrap gap-3 items-center mb-4"
       >
-        <input
-          name="code"
-          placeholder="Kód (QR)"
-          value={form.code}
-          onChange={handleChange}
-          ref={codeInputRef}
-          className="px-3 py-2 rounded-md bg-slate-800 border border-slate-700 text-sm flex-1 min-w-[140px]"
-        />
-        <button
-          type="button"
-          onClick={() => {
-            setScanStatus("");
-            setScanOpen((v) => !v);
-          }}
-          className="px-3 py-2 rounded-md bg-indigo-500 hover:bg-indigo-600 text-sm font-medium"
-        >
-          {scanOpen ? "Zavřít čtečku" : "Naskenovat QR"}
-        </button>
+        {editId && (
+          <>
+            <input
+              name="code"
+              placeholder="Kód (QR)"
+              value={form.code}
+              onChange={handleChange}
+              ref={codeInputRef}
+              className="px-3 py-2 rounded-md bg-slate-800 border border-slate-700 text-sm flex-1 min-w-[140px]"
+            />
+            <button
+              type="button"
+              onClick={() => {
+                setScanStatus("");
+                setScanOpen((v) => !v);
+              }}
+              className="px-3 py-2 rounded-md bg-indigo-500 hover:bg-indigo-600 text-sm font-medium"
+            >
+              {scanOpen ? "Zavřít čtečku" : "Naskenovat QR"}
+            </button>
+          </>
+        )}
         <input
           name="name"
           placeholder="Název"
