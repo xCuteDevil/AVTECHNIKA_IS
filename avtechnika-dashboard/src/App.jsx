@@ -61,7 +61,7 @@ function App() {
 
           <nav className="flex flex-wrap gap-3 mt-4">
             <TabButton active={tab === "items"} onClick={() => setTab("items")}>
-              Technikaa
+              Technika
             </TabButton>
             <TabButton
               active={tab === "customers"}
