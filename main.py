@@ -395,7 +395,8 @@ def list_items(include_inactive: bool = False, db: Session = Depends(get_db)):
             .all()
         )
     # Vypočítat aktuální stav položky podle aktivní výpůjčky a oken zakázky
-    now = datetime.utcnow()
+    now_dt = datetime.utcnow()
+    today = now_dt.date()
     active_rows = (
         db.query(Loan, Order)
         .outerjoin(Order, Loan.order_id == Order.id)
@@ -419,13 +420,18 @@ def list_items(include_inactive: bool = False, db: Session = Depends(get_db)):
         return_at = (order.return_at if order else None) or loan.date_due
         status = "MIMO_SKLAD"
         try:
-            if depart_at and now < depart_at:
+            d = depart_at.date() if depart_at else None
+            s = start_at.date() if start_at else None
+            e = end_at.date() if end_at else None
+            r = return_at.date() if return_at else None
+            # Stav podle dní (UTC), s inkluzí dne návratu i dne konce akce pro "na cestě zpět"
+            if d and s and today < d:
                 status = "VE_SKLADU"
-            elif depart_at and start_at and depart_at <= now < start_at:
+            elif d and s and d <= today < s:
                 status = "NA_CESTE_NA_AKCI"
-            elif start_at and end_at and start_at <= now < end_at:
+            elif s and e and s <= today <= e:
                 status = "NA_AKCI"
-            elif end_at and return_at and end_at <= now < return_at:
+            elif e and r and e <= today <= r:
                 status = "NA_CESTE_Z_AKCE"
             else:
                 status = "MIMO_SKLAD"
