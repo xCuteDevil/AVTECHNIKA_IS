@@ -376,7 +376,7 @@ function ItemsView() {
   const openQrForItem = async (it) => {
     try {
       const payload = `${it.code || ""}`; // do QR ukládáme pouze kód
-      const dataUrl = await generateQrDataUrl(payload); // s bílou klidovou zónou
+      const dataUrl = await generateQrDataUrl(payload, it.code || ""); // s bílou klidovou zónou + popisek
       setQrModal({ open: true, item: it, dataUrl: dataUrl || null });
     } catch (e) {
       alert("Nepodařilo se vygenerovat QR.");
@@ -399,7 +399,7 @@ function ItemsView() {
     return qrLibPromise;
   };
 
-  const generateQrDataUrl = async (text) => {
+  const generateQrDataUrl = async (text, labelText) => {
     const QRCode = await loadQrLib();
     const host = document.createElement("div");
     host.style.position = "fixed";
@@ -447,16 +447,32 @@ function ItemsView() {
     }
     document.body.removeChild(host);
     if (!srcCanvas || !srcDataUrl) return srcDataUrl || null;
-    // vytvoř finální plátno s bílým okrajem (quiet zone)
-    const border = 20; // px
-    const size = 320 + border * 2;
+    // vytvoř finální plátno s bílým okrajem (quiet zone) + volitelný popisek pod kódem
+    const border = 20; // px kolem QR
+    const qrSize = 320;
+    const label = (labelText ?? "").toString().trim();
+    const labelGap = label ? 10 : 0; // mezera mezi QR a textem
+    const labelHeight = label ? 24 : 0; // výška prostoru pro text
+    const width = qrSize + border * 2;
+    const height = qrSize + border * 2 + labelGap + labelHeight;
     const out = document.createElement("canvas");
-    out.width = size;
-    out.height = size;
+    out.width = width;
+    out.height = height;
     const octx = out.getContext("2d");
+    // bílé pozadí kvůli čitelnosti na tmavém podkladu
     octx.fillStyle = "#fff";
-    octx.fillRect(0, 0, size, size);
+    octx.fillRect(0, 0, width, height);
+    // QR s klidovou zónou
     octx.drawImage(srcCanvas, border, border);
+    // popisek (kód položky) pod QR, zarovnaný na střed
+    if (label) {
+      octx.fillStyle = "#0f172a"; // tmavě šedá/černá
+      octx.font = "bold 16px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial";
+      octx.textAlign = "center";
+      octx.textBaseline = "top";
+      const y = border + qrSize + labelGap;
+      octx.fillText(label, Math.floor(width / 2), y);
+    }
     return out.toDataURL("image/png");
   };
 
@@ -464,7 +480,7 @@ function ItemsView() {
     try {
       // Ukládáme pouze kód pro nejlepší skenovatelnost
       const payload = `${it.code || ""}`;
-      const dataUrl = await generateQrDataUrl(payload);
+      const dataUrl = await generateQrDataUrl(payload, it.code || "");
       if (!dataUrl) return;
       await fetch(`${API_BASE}/items/${it.id}/qr_image`, {
         method: "POST",
@@ -598,7 +614,7 @@ function ItemsView() {
                 <img
                   src={qrModal.dataUrl}
                   alt="QR"
-                  style={{ width: 360, height: 360 }}
+                  style={{ width: 360 }}
                   className="rounded-md bg-white"
                 />
               ) : (
@@ -621,7 +637,7 @@ function ItemsView() {
                     const doc = iframe.contentWindow.document;
                     doc.open();
                     doc.write(`<html><body style="margin:0;display:flex;align-items:center;justify-content:center;">
-                      <img src="${qrModal.dataUrl || ""}" style="width:360px;height:360px" />
+                      <img src="${qrModal.dataUrl || ""}" style="width:360px;height:auto" />
                     </body></html>`);
                     doc.close();
                     setTimeout(() => {
