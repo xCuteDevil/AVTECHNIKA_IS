@@ -2366,81 +2366,94 @@ function OrdersView() {
 
       <form
         onSubmit={handleSubmit}
-        className="flex flex-wrap gap-3 items-center mb-4"
+        className="flex flex-wrap gap-4 items-end mb-4"
       >
-        <select
-          name="customer_id"
-          value={form.customer_id}
-          onChange={handleChange}
-          required
-          className="px-3 py-2 rounded-md bg-slate-800 border border-slate-700 text-sm min-w-[180px]"
-        >
-          <option value="">– Vyber kontaktní osobu –</option>
-          {customers.map((c) => (
-            <option key={c.id} value={c.id}>
-              {(c.contact_person && c.contact_person.trim().length > 0)
-                ? `${c.contact_person} — ${c.name}`
-                : c.name}
-            </option>
-          ))}
-        </select>
+        <div className="flex flex-col min-w-[220px]">
+          <label className="text-xs text-slate-400 px-1 mb-1">Kontaktní osoba</label>
+          <select
+            name="customer_id"
+            value={form.customer_id}
+            onChange={handleChange}
+            required
+            className="px-3 py-2 rounded-md bg-slate-800 border border-slate-700 text-sm"
+          >
+            <option value="">– Vyber kontaktní osobu –</option>
+            {customers.map((c) => (
+              <option key={c.id} value={c.id}>
+                {(c.contact_person && c.contact_person.trim().length > 0)
+                  ? `${c.contact_person} — ${c.name}`
+                  : c.name}
+              </option>
+            ))}
+          </select>
+        </div>
 
-        <input
-          type="date"
-          name="depart_at"
-          value={form.depart_at}
-          onChange={handleChange}
-          required
-          className="px-3 py-2 rounded-md bg-slate-800 border border-slate-700 text-sm"
-          placeholder="Odjezd techniky"
-          title="Odjezd techniky"
-        />
-        <input
-          type="date"
-          name="date_out"
-          value={form.date_out}
-          onChange={handleChange}
-          required
-          className="px-3 py-2 rounded-md bg-slate-800 border border-slate-700 text-sm"
-          placeholder="Začátek akce"
-          title="Začátek akce"
-        />
-        <input
-          type="date"
-          name="date_due"
-          value={form.date_due}
-          onChange={handleChange}
-          required
-          className="px-3 py-2 rounded-md bg-slate-800 border border-slate-700 text-sm"
-          placeholder="Konec akce"
-          title="Konec akce"
-        />
-        <input
-          type="date"
-          name="return_at"
-          value={form.return_at}
-          onChange={handleChange}
-          required
-          className="px-3 py-2 rounded-md bg-slate-800 border border-slate-700 text-sm"
-          placeholder="Návrat techniky"
-          title="Návrat techniky"
-        />
+        <div className="flex flex-col">
+          <label className="text-xs text-slate-400 px-1 mb-1">Odjezd techniky</label>
+          <input
+            type="date"
+            name="depart_at"
+            value={form.depart_at}
+            onChange={handleChange}
+            className="px-3 py-2 rounded-md bg-slate-800 border border-slate-700 text-sm"
+            title="Odjezd techniky"
+          />
+        </div>
+        <div className="flex flex-col">
+          <label className="text-xs text-slate-400 px-1 mb-1">Začátek akce</label>
+          <input
+            type="date"
+            name="date_out"
+            value={form.date_out}
+            onChange={handleChange}
+            required
+            className="px-3 py-2 rounded-md bg-slate-800 border border-slate-700 text-sm"
+            title="Začátek akce"
+          />
+        </div>
+        <div className="flex flex-col">
+          <label className="text-xs text-slate-400 px-1 mb-1">Konec akce</label>
+          <input
+            type="date"
+            name="date_due"
+            value={form.date_due}
+            onChange={handleChange}
+            required
+            className="px-3 py-2 rounded-md bg-slate-800 border border-slate-700 text-sm"
+            title="Konec akce"
+          />
+        </div>
+        <div className="flex flex-col">
+          <label className="text-xs text-slate-400 px-1 mb-1">Návrat techniky</label>
+          <input
+            type="date"
+            name="return_at"
+            value={form.return_at}
+            onChange={handleChange}
+            className="px-3 py-2 rounded-md bg-slate-800 border border-slate-700 text-sm"
+            title="Návrat techniky"
+          />
+        </div>
 
-        <input
-          name="event_name"
-          placeholder="Název akce"
-          value={form.event_name}
-          onChange={handleChange}
-          className="px-3 py-2 rounded-md bg-slate-800 border border-slate-700 text-sm flex-1 min-w-[160px]"
-        />
+        <div className="flex flex-col flex-1 min-w-[200px]">
+          <label className="text-xs text-slate-400 px-1 mb-1">Název akce</label>
+          <input
+            name="event_name"
+            value={form.event_name}
+            onChange={handleChange}
+            className="px-3 py-2 rounded-md bg-slate-800 border border-slate-700 text-sm"
+          />
+        </div>
 
-        <input
-          name="event_location"
-          placeholder="Místo akce"
-          value={form.event_location}
-          onChange={handleChange}
-          className="px-3 py-2 rounded-md bg-slate-800 border border-slate-700 text-sm flex-1 min-w-[160px]"
-        />
+        <div className="flex flex-col flex-1 min-w-[200px]">
+          <label className="text-xs text-slate-400 px-1 mb-1">Místo akce</label>
+          <input
+            name="event_location"
+            value={form.event_location}
+            onChange={handleChange}
+            className="px-3 py-2 rounded-md bg-slate-800 border border-slate-700 text-sm"
+          />
+        </div>
 
         <div className="w-full" />
         <div className="w-full grid grid-cols-1 gap-3 mt-2">
