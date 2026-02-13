@@ -140,6 +140,7 @@ function ItemsView() {
   });
   const [sortBy, setSortBy] = useState("id"); // id | code | name | category | status
   const [sortDir, setSortDir] = useState("asc"); // asc | desc
+  const [qrModal, setQrModal] = useState({ open: false, item: null, dataUrl: null }); // QR v aktuální záložce
 
   const toggleSort = (key) => {
     if (sortBy === key) {
@@ -372,164 +373,13 @@ function ItemsView() {
     });
   };
 
-  const openQrForItem = (it) => {
-    // Pro maximální spolehlivost skenování ukládáme do QR jen KÓD
-    const payload = `${it.code || ""}`;
-    const escaped = JSON.stringify(payload);
-    const codeEsc = JSON.stringify(it.code || "");
-    const nameEsc = JSON.stringify(it.name || "");
-    const apiBase = JSON.stringify(API_BASE);
-    const itemId = JSON.stringify(it.id);
-    const html = `
-<!doctype html>
-<html>
-  <head>
-    <meta charset="utf-8" />
-    <title>QR – ${it.code || ""}</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <style>
-      body { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
-             background:#0f172a; color:#e2e8f0; margin:0; padding:24px; display:flex; flex-direction:column; align-items:center; gap:12px; }
-      .card { background:#0b1220; border:1px solid #1f2937; padding:16px; border-radius:12px; }
-      .meta { font-size:12px; color:#94a3b8; text-align:center; }
-      .title { font-weight:700; font-size:18px; text-align:center; }
-      .btn { padding:8px 12px; border-radius:8px; border:0; background:#2563eb; color:#fff; cursor:pointer; }
-      .row { display:flex; gap:8px; }
-      .ok { color:#86efac; font-size:12px; }
-      .err { color:#fda4af; font-size:12px; }
-    </style>
-  </head>
-  <body>
-    <div class="card">
-      <div id="qrcode" style="width:360px; height:360px; background:#ffffff; border-radius:8px;"></div>
-    </div>
-    <div class="title"><span class="code"></span></div>
-    <div class="meta"><span class="name"></span></div>
-    <div class="meta">Obsah QR: KÓD</div>
-    <div class="row">
-      <button class="btn" onclick="window.print()">Tisk</button>
-      <button class="btn" id="saveBtn">Uložit do projektu</button>
-    </div>
-    <div id="msg"></div>
-    <script src="https://cdn.jsdelivr.net/gh/davidshimjs/qrcodejs/qrcode.min.js"></script>
-    <script>
-      const text = ${escaped};
-      document.querySelector('.code').textContent = ${codeEsc};
-      document.querySelector('.name').textContent = ${nameEsc};
-      new QRCode(document.getElementById('qrcode'), {
-        text,
-        width: 320,
-        height: 320,
-        // menší hustota dat → spolehlivější čtení
-        correctLevel: QRCode.CorrectLevel.L
-      });
-      // vyrobíme PNG s bílou klidovou zónou (quiet zone) kolem kódu
-      function buildBorderedDataUrl() {
-        const host = document.getElementById('qrcode');
-        const canvas = host.querySelector('canvas');
-        if (canvas) {
-          const out = document.createElement('canvas');
-          out.width = 360; out.height = 360;
-          const ctx = out.getContext('2d');
-          ctx.fillStyle = '#fff';
-          ctx.fillRect(0, 0, 360, 360);
-          ctx.drawImage(canvas, 20, 20);
-          return out.toDataURL('image/png');
-        }
-        const img = host.querySelector('img');
-        if (img && img.src && img.src.startsWith('data:image')) {
-          // již hotový datový URL → obalíme bílým okrajem
-          return new Promise((resolve, reject) => {
-            const im = new Image();
-            im.crossOrigin = 'anonymous';
-            im.onload = () => {
-              const c = document.createElement('canvas');
-              c.width = 320; c.height = 320;
-              const ictx = c.getContext('2d');
-              ictx.drawImage(im, 0, 0, 320, 320);
-              const out = document.createElement('canvas');
-              out.width = 360; out.height = 360;
-              const ctx = out.getContext('2d');
-              ctx.fillStyle = '#fff';
-              ctx.fillRect(0, 0, 360, 360);
-              ctx.drawImage(c, 20, 20);
-              resolve(out.toDataURL('image/png'));
-            };
-            im.onerror = reject;
-            im.src = img.src;
-          });
-        }
-        if (img && img.src) {
-          const c = document.createElement('canvas');
-          c.width = 320; c.height = 320;
-          const ctx = c.getContext('2d');
-          const im = new Image();
-          return new Promise((resolve, reject) => {
-            im.crossOrigin = 'anonymous';
-            im.onload = () => {
-              ctx.drawImage(im, 0, 0, 320, 320);
-              const out = document.createElement('canvas');
-              out.width = 360; out.height = 360;
-              const octx = out.getContext('2d');
-              octx.fillStyle = '#fff';
-              octx.fillRect(0, 0, 360, 360);
-              octx.drawImage(c, 20, 20);
-              resolve(out.toDataURL('image/png'));
-            };
-            im.onerror = reject;
-            im.src = img.src;
-          });
-        }
-        return null;
-      }
-      // Nahraď zobrazený QR verzí s bílým okrajem (lepší čitelnost na mobilu)
-      (async function presentBordered() {
-        const dataUrl = await buildBorderedDataUrl();
-        if (dataUrl) {
-          const host = document.getElementById('qrcode');
-          host.innerHTML = '';
-          const img = new Image();
-          img.src = dataUrl;
-          img.style.width = '360px';
-          img.style.height = '360px';
-          host.appendChild(img);
-        }
-      })();
-      async function ensureDataUrl() {
-        const v = buildBorderedDataUrl();
-        if (v && typeof v.then === 'function') return await v;
-        return v;
-      }
-      document.getElementById('saveBtn').addEventListener('click', async () => {
-        const msg = document.getElementById('msg');
-        msg.textContent = '';
-        try {
-          const dataUrl = await ensureDataUrl();
-          if (!dataUrl) throw new Error('Nepodařilo se přečíst QR obrázek.');
-          const res = await fetch(${apiBase} + '/items/' + ${itemId} + '/qr_image', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ png_base64: dataUrl })
-          });
-          if (!res.ok) {
-            const t = await res.text().catch(()=>'');
-            throw new Error('Ukládání selhalo: ' + (t || res.status));
-          }
-          msg.innerHTML = '<span class="ok">Uloženo do složky public/qr.</span>';
-        } catch (e) {
-          msg.innerHTML = '<span class="err">' + (e && e.message ? e.message : 'Chyba při ukládání') + '</span>';
-        }
-      });
-    </script>
-  </body>
-</html>`;
-    const w = window.open("", "_blank", "width=420,height=560");
-    if (w) {
-      w.document.open();
-      w.document.write(html);
-      w.document.close();
-    } else {
-      alert("Nelze otevřít okno pro QR – povol v prohlížeči otevírání oken.");
+  const openQrForItem = async (it) => {
+    try {
+      const payload = `${it.code || ""}`; // do QR ukládáme pouze kód
+      const dataUrl = await generateQrDataUrl(payload); // s bílou klidovou zónou
+      setQrModal({ open: true, item: it, dataUrl: dataUrl || null });
+    } catch (e) {
+      alert("Nepodařilo se vygenerovat QR.");
     }
   };
 
@@ -732,6 +582,75 @@ function ItemsView() {
   return (
     <section>
       <h2 className="text-2xl font-semibold mb-4">Technika</h2>
+
+      {/* QR Modal (aktuální záložka) */}
+      {qrModal.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div
+            className="absolute inset-0 bg-black/60"
+            onClick={() => setQrModal({ open: false, item: null, dataUrl: null })}
+          />
+          <div className="relative z-10 bg-slate-900 border border-slate-800 rounded-xl p-4 w-[420px] max-w-[95vw]">
+            <div className="text-center font-semibold mb-1">QR – {qrModal.item?.code || ""}</div>
+            <div className="text-center text-sm text-slate-400 mb-3">{qrModal.item?.name || ""}</div>
+            <div className="flex items-center justify-center mb-3">
+              {qrModal.dataUrl ? (
+                <img
+                  src={qrModal.dataUrl}
+                  alt="QR"
+                  style={{ width: 360, height: 360 }}
+                  className="rounded-md bg-white"
+                />
+              ) : (
+                <div className="w-[360px] h-[360px] flex items-center justify-center text-slate-400">Generuji…</div>
+              )}
+            </div>
+            <div className="flex gap-2 justify-center">
+              <button
+                className="px-3 py-2 rounded-md bg-blue-600 hover:bg-blue-500 text-sm"
+                onClick={() => {
+                  try {
+                    const iframe = document.createElement("iframe");
+                    iframe.style.position = "fixed";
+                    iframe.style.right = "0";
+                    iframe.style.bottom = "0";
+                    iframe.style.width = "0";
+                    iframe.style.height = "0";
+                    iframe.style.border = "0";
+                    document.body.appendChild(iframe);
+                    const doc = iframe.contentWindow.document;
+                    doc.open();
+                    doc.write(`<html><body style="margin:0;display:flex;align-items:center;justify-content:center;">
+                      <img src="${qrModal.dataUrl || ""}" style="width:360px;height:360px" />
+                    </body></html>`);
+                    doc.close();
+                    setTimeout(() => {
+                      iframe.contentWindow.focus();
+                      iframe.contentWindow.print();
+                      setTimeout(() => document.body.removeChild(iframe), 200);
+                    }, 50);
+                  } catch {}
+                }}
+              >
+                Tisk
+              </button>
+              <a
+                className="px-3 py-2 rounded-md bg-slate-700 hover:bg-slate-600 text-sm"
+                href={qrModal.dataUrl || "#"}
+                download={(qrModal.item?.code || "qr") + ".png"}
+              >
+                Stáhnout PNG
+              </a>
+              <button
+                className="px-3 py-2 rounded-md bg-slate-700 hover:bg-slate-600 text-sm"
+                onClick={() => setQrModal({ open: false, item: null, dataUrl: null })}
+              >
+                Zavřít
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <form
         onSubmit={handleSubmit}
