@@ -12,6 +12,32 @@ FRONTEND_API_BASE="${FRONTEND_API_BASE:-/api}"
 
 mkdir -p "$ROOT/logs" "$ROOT/.pids"
 
+ensure_venv() {
+  # Prefer existing virtualenvs with an activate script
+  if [[ -f "$ROOT/.venv/bin/activate" ]]; then
+    VENV_DIR="$ROOT/.venv"
+  elif [[ -f "$ROOT/venv/bin/activate" ]]; then
+    VENV_DIR="$ROOT/venv"
+  else
+    # Create a fresh venv (use .venv as default location)
+    VENV_DIR="$ROOT/.venv"
+    echo "Creating Python virtual environment at $VENV_DIR"
+    if command -v python3 >/dev/null 2>&1; then
+      python3 -m venv "$VENV_DIR"
+    else
+      echo "python3 not found. Please install Python 3 and rerun." >&2
+      exit 1
+    fi
+  fi
+  # shellcheck disable=SC1090
+  source "$VENV_DIR/bin/activate"
+  # make sure deps are present
+  if [[ -f "$ROOT/requirements.txt" ]]; then
+    python -m pip install -U pip wheel >/dev/null 2>&1 || true
+    python -m pip install -r "$ROOT/requirements.txt"
+  fi
+}
+
 kill_port() {
   local port="$1"
   local pids
@@ -59,9 +85,7 @@ start_backend() {
   echo "Starting backend (uvicorn) on :$BACKEND_PORT"
   (
     cd "$ROOT"
-    if [[ -f "venv/bin/activate" ]]; then
-      source venv/bin/activate
-    fi
+    ensure_venv
     uvicorn main:app --host 0.0.0.0 --port "$BACKEND_PORT" --reload \
       > "$ROOT/logs/backend.log" 2>&1 &
     echo $! > "$ROOT/.pids/backend.pid"
@@ -72,6 +96,15 @@ start_frontend() {
   echo "Starting frontend (Vite) on :$FRONTEND_PORT (HTTPS=$VITE_DEV_HTTPS, API_BASE=$FRONTEND_API_BASE)"
   (
     cd "$ROOT/avtechnika-dashboard"
+    # Ensure node modules are installed; install missing Tailwind PostCSS plugin if needed
+    if [[ ! -d "node_modules" ]]; then
+      echo "Installing frontend dependencies (npm ci)..."
+      npm ci >/dev/null 2>&1 || npm install
+    fi
+    if [[ ! -d "node_modules/@tailwindcss/postcss" ]]; then
+      echo "Installing @tailwindcss/postcss..."
+      npm install -D @tailwindcss/postcss
+    fi
     VITE_DEV_HTTPS="$VITE_DEV_HTTPS" \
     VITE_API_BASE="$FRONTEND_API_BASE" \
     VITE_SSL_CERT="${VITE_SSL_CERT:-}" \
