@@ -64,6 +64,16 @@ class Customer(Base):
     orders = relationship("Order", back_populates="customer")  # NOVÉ
 
 # -----------------------------
+# Categories (allowed item categories)
+# -----------------------------
+class Category(Base):
+    __tablename__ = "categories"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String(100), unique=True, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+# -----------------------------
 # Orders (zakázky)
 # -----------------------------
 class Order(Base):

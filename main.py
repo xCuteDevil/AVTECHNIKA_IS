@@ -17,6 +17,7 @@ from models import (
     Base,
     Item,
     ItemAccessory,
+    Category,
     Customer,
     Loan,
     User,
@@ -56,6 +57,30 @@ def _ensure_order_logistics_columns():
         pass
 
 _ensure_order_logistics_columns()
+
+def _normalize_category_name(name: Optional[str]) -> str:
+    s = (name or "").strip()
+    s = re.sub(r"\s{2,}", " ", s)
+    return s
+
+def _ensure_default_categories():
+    # Seed default set if table exists
+    defaults = ["Video", "Audio", "Světla", "Konstrukce", "Pódia"]
+    try:
+        with engine.begin() as conn:
+            rows = conn.exec_driver_sql("SELECT name FROM categories").fetchall()
+            existing = {r[0] for r in rows}
+            for name in defaults:
+                if name not in existing:
+                    conn.exec_driver_sql(
+                        "INSERT INTO categories (name, created_at) VALUES (?, ?)",
+                        (name, datetime.utcnow()),
+                    )
+    except Exception:
+        # table may not exist yet on first run; ignore
+        pass
+
+_ensure_default_categories()
 
 app = FastAPI(title="AV Technika IS")
 
@@ -124,6 +149,15 @@ class ItemUpdate(BaseModel):
     serial_number: Optional[str] = None
     location: Optional[str] = None
     condition_note: Optional[str] = None
+
+# ---------- Pydantic schémata – CATEGORIES ----------
+class CategoryCreate(BaseModel):
+    name: str
+
+class CategoryOut(BaseModel):
+    id: int
+    name: str
+    model_config = ConfigDict(from_attributes=True)
 
 # ---------- Pydantic schémata – CUSTOMERS ----------
 
@@ -317,6 +351,12 @@ def _qr_output_dir() -> Path:
 def create_item(item_in: ItemCreate, db: Session = Depends(get_db)):
     # Pokud kód není zadán, vygenerujeme unikátní podle názvu/kategorie
     input_code = (item_in.code or "").strip()
+    # Validate category if provided
+    if item_in.category:
+        cat_norm = _normalize_category_name(item_in.category)
+        cat = db.query(Category).filter(func.trim(Category.name) == cat_norm).first()
+        if not cat:
+            raise HTTPException(status_code=400, detail="Neznámá kategorie. Nejprve ji vytvoř v seznamu kategorií.")
     if input_code:
         existing = db.query(Item).filter(_normalize_code_sql(Item.code) == _normalize_code_py(input_code)).first()
         if existing:
@@ -340,7 +380,7 @@ def create_item(item_in: ItemCreate, db: Session = Depends(get_db)):
     item = Item(
         code=code_to_use,
         name=item_in.name,
-        category=item_in.category,
+        category=_normalize_category_name(item_in.category) if item_in.category else None,
         manufacturer=item_in.manufacturer,
         serial_number=item_in.serial_number,
         location=item_in.location,
@@ -552,6 +592,12 @@ def update_item(
         raise HTTPException(status_code=404, detail="Položka nenalezena.")
 
     data = item_in.dict(exclude_unset=True)
+    # Normalize and validate category if changing
+    if "category" in data and data["category"] is not None:
+        data["category"] = _normalize_category_name(data["category"])
+        cat = db.query(Category).filter(func.trim(Category.name) == data["category"]).first()
+        if not cat:
+            raise HTTPException(status_code=400, detail="Neznámá kategorie. Nejprve ji vytvoř v seznamu kategorií.")
     # ohlídat unikátní kód
     new_code = data.get("code")
     if new_code is not None and new_code != item.code:
@@ -565,6 +611,26 @@ def update_item(
     db.commit()
     db.refresh(item)
     return item
+
+# ---------- CATEGORIES endpointy ----------
+@app.get("/categories", response_model=List[CategoryOut])
+def list_categories(db: Session = Depends(get_db)):
+    rows = db.query(Category).order_by(Category.name).all()
+    return rows
+
+@app.post("/categories", response_model=CategoryOut)
+def create_category(body: CategoryCreate, db: Session = Depends(get_db)):
+    name = _normalize_category_name(body.name)
+    if not name:
+        raise HTTPException(status_code=400, detail="Název kategorie nesmí být prázdný.")
+    exists = db.query(Category).filter(func.trim(Category.name) == name).first()
+    if exists:
+        return exists
+    cat = Category(name=name)
+    db.add(cat)
+    db.commit()
+    db.refresh(cat)
+    return cat
 
 # ---------- CUSTOMERS endpointy ----------
 

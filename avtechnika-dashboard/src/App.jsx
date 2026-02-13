@@ -110,6 +110,7 @@ function TabButton({ active, children, ...props }) {
 function ItemsView() {
   const [items, setItems] = useState([]);
   const [customers, setCustomers] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [form, setForm] = useState({
     code: "",
     name: "",
@@ -206,6 +207,12 @@ function ItemsView() {
     const data = await res.json();
     setItems(data);
   };
+  const loadCategories = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/categories`);
+      if (res.ok) setCategories(await res.json());
+    } catch {}
+  };
   const loadCustomers = async () => {
     const res = await fetch(`${API_BASE}/customers`);
     setCustomers(await res.json());
@@ -268,10 +275,37 @@ function ItemsView() {
   useEffect(() => {
     loadItems();
     loadCustomers();
+    loadCategories();
   }, []);
 
   const handleChange = (e) => {
     setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
+  };
+  const handleCategorySelect = async (e) => {
+    const val = e.target.value;
+    if (val === "__ADD__") {
+      const name = prompt("Název nové kategorie:");
+      if (!name) return;
+      try {
+        const res = await fetch(`${API_BASE}/categories`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name }),
+        });
+        if (res.ok) {
+          const cat = await res.json();
+          await loadCategories();
+          setForm((f) => ({ ...f, category: cat.name }));
+        } else {
+          const err = await res.json().catch(() => ({}));
+          alert("Nelze vytvořit kategorii: " + (err.detail || res.statusText));
+        }
+      } catch (e2) {
+        alert("Chyba sítě při vytváření kategorie.");
+      }
+      return;
+    }
+    setForm((f) => ({ ...f, category: val }));
   };
 
   const handleSubmit = async (e) => {
@@ -730,14 +764,20 @@ function ItemsView() {
           ref={nameInputRef}
           className="px-3 py-2 rounded-md bg-slate-800 border border-slate-700 text-sm flex-1 min-w-[160px]"
         />
-        <input
+        <select
           name="category"
-          placeholder="Kategorie"
           value={form.category}
-          onChange={handleChange}
+          onChange={handleCategorySelect}
           ref={categoryInputRef}
-          className="px-3 py-2 rounded-md bg-slate-800 border border-slate-700 text-sm flex-1 min-w-[120px]"
-        />
+          className="px-3 py-2 rounded-md bg-slate-800 border border-slate-700 text-sm flex-1 min-w-[160px]"
+          title="Kategorie"
+        >
+          <option value="">— vyber kategorii —</option>
+          {categories.map((c) => (
+            <option key={c.id} value={c.name}>{c.name}</option>
+          ))}
+          <option value="__ADD__">+ Přidat novou kategorii…</option>
+        </select>
         <button
           type="submit"
           className="px-4 py-2 rounded-md bg-blue-500 hover:bg-blue-600 text-sm font-medium"
