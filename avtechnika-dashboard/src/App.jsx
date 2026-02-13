@@ -367,7 +367,7 @@ function ItemsView() {
   </head>
   <body>
     <div class="card">
-      <div id="qrcode" style="width:320px; height:320px;"></div>
+      <div id="qrcode" style="width:360px; height:360px; background:#ffffff; border-radius:8px;"></div>
     </div>
     <div class="title"><span class="code"></span></div>
     <div class="meta"><span class="name"></span></div>
@@ -389,12 +389,42 @@ function ItemsView() {
         // menší hustota dat → spolehlivější čtení
         correctLevel: QRCode.CorrectLevel.L
       });
-      function getDataUrl() {
+      // vyrobíme PNG s bílou klidovou zónou (quiet zone) kolem kódu
+      function buildBorderedDataUrl() {
         const host = document.getElementById('qrcode');
         const canvas = host.querySelector('canvas');
-        if (canvas) return canvas.toDataURL('image/png');
+        if (canvas) {
+          const out = document.createElement('canvas');
+          out.width = 360; out.height = 360;
+          const ctx = out.getContext('2d');
+          ctx.fillStyle = '#fff';
+          ctx.fillRect(0, 0, 360, 360);
+          ctx.drawImage(canvas, 20, 20);
+          return out.toDataURL('image/png');
+        }
         const img = host.querySelector('img');
-        if (img && img.src && img.src.startsWith('data:image')) return img.src;
+        if (img && img.src && img.src.startsWith('data:image')) {
+          // již hotový datový URL → obalíme bílým okrajem
+          return new Promise((resolve, reject) => {
+            const im = new Image();
+            im.crossOrigin = 'anonymous';
+            im.onload = () => {
+              const c = document.createElement('canvas');
+              c.width = 320; c.height = 320;
+              const ictx = c.getContext('2d');
+              ictx.drawImage(im, 0, 0, 320, 320);
+              const out = document.createElement('canvas');
+              out.width = 360; out.height = 360;
+              const ctx = out.getContext('2d');
+              ctx.fillStyle = '#fff';
+              ctx.fillRect(0, 0, 360, 360);
+              ctx.drawImage(c, 20, 20);
+              resolve(out.toDataURL('image/png'));
+            };
+            im.onerror = reject;
+            im.src = img.src;
+          });
+        }
         if (img && img.src) {
           const c = document.createElement('canvas');
           c.width = 320; c.height = 320;
@@ -402,15 +432,37 @@ function ItemsView() {
           const im = new Image();
           return new Promise((resolve, reject) => {
             im.crossOrigin = 'anonymous';
-            im.onload = () => { ctx.drawImage(im, 0, 0, 320, 320); resolve(c.toDataURL('image/png')); };
+            im.onload = () => {
+              ctx.drawImage(im, 0, 0, 320, 320);
+              const out = document.createElement('canvas');
+              out.width = 360; out.height = 360;
+              const octx = out.getContext('2d');
+              octx.fillStyle = '#fff';
+              octx.fillRect(0, 0, 360, 360);
+              octx.drawImage(c, 20, 20);
+              resolve(out.toDataURL('image/png'));
+            };
             im.onerror = reject;
             im.src = img.src;
           });
         }
         return null;
       }
+      // Nahraď zobrazený QR verzí s bílým okrajem (lepší čitelnost na mobilu)
+      (async function presentBordered() {
+        const dataUrl = await buildBorderedDataUrl();
+        if (dataUrl) {
+          const host = document.getElementById('qrcode');
+          host.innerHTML = '';
+          const img = new Image();
+          img.src = dataUrl;
+          img.style.width = '360px';
+          img.style.height = '360px';
+          host.appendChild(img);
+        }
+      })();
       async function ensureDataUrl() {
-        const v = getDataUrl();
+        const v = buildBorderedDataUrl();
         if (v && typeof v.then === 'function') return await v;
         return v;
       }
