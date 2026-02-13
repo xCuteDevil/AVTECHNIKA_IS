@@ -131,6 +131,12 @@ function ItemsView() {
   const [orderDetailsById, setOrderDetailsById] = useState({});
   const [orderLoansById, setOrderLoansById] = useState({});
   const [openHistoryOrders, setOpenHistoryOrders] = useState({});
+  // Kalendář dostupnosti (per položka)
+  const [calendarFor, setCalendarFor] = useState(null); // itemId | null
+  const [calendarMonth, setCalendarMonth] = useState(() => {
+    const d = new Date();
+    return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1));
+  });
   const [sortBy, setSortBy] = useState("id"); // id | code | name | category | status
   const [sortDir, setSortDir] = useState("asc"); // asc | desc
 
@@ -233,6 +239,25 @@ function ItemsView() {
     if (res.ok) {
       const data = await res.json();
       setOrderLoansById((m) => ({ ...m, [orderId]: data }));
+    }
+  };
+  const ensureOrderDetailsForItem = async (itemId) => {
+    // stáhni historii výpůjček (kvůli order_id)
+    if (!histories[itemId]) {
+      await loadHistory(itemId);
+    }
+    const loans = histories[itemId] || [];
+    const toFetch = Array.from(
+      new Set(loans.map((l) => l.order_id).filter((id) => !!id && !orderDetailsById[id]))
+    );
+    if (toFetch.length) {
+      await Promise.all(
+        toFetch.map(async (id) => {
+          try {
+            await loadOrderDetail(id);
+          } catch {}
+        })
+      );
     }
   };
 
@@ -875,6 +900,17 @@ function ItemsView() {
                       <Svg.Scan />
                     </IconBtn>
                     <IconBtn
+                      title="Kalendář dostupnosti"
+                      onClick={async () => {
+                        await ensureOrderDetailsForItem(it.id);
+                        const d = new Date();
+                        setCalendarMonth(new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)));
+                        setCalendarFor(it.id);
+                      }}
+                    >
+                      <Svg.Calendar />
+                    </IconBtn>
+                    <IconBtn
                       title="Historie"
                       onClick={async () => {
                         const next = historyFor === it.id ? null : it.id;
@@ -1048,10 +1084,181 @@ function ItemsView() {
           </tbody>
         </table>
       </div>
+      {calendarFor && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setCalendarFor(null)} />
+          <div className="relative z-10 w-full max-w-xl rounded-xl border border-slate-700 bg-slate-900 shadow-xl">
+            <div className="flex items-center justify-between p-3 border-b border-slate-800">
+              <div className="text-sm font-semibold">Kalendář dostupnosti</div>
+              <div className="flex items-center gap-2">
+                <button
+                  title="Předchozí měsíc"
+                  onClick={() =>
+                    setCalendarMonth((d) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() - 1, 1)))
+                  }
+                  className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200"
+                >
+                  ◀
+                </button>
+                <button
+                  title="Další měsíc"
+                  onClick={() =>
+                    setCalendarMonth((d) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1)))
+                  }
+                  className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200"
+                >
+                  ▶
+                </button>
+                <button
+                  title="Zavřít"
+                  onClick={() => setCalendarFor(null)}
+                  className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+            <div className="p-4">
+              <CalendarGrid
+                monthStart={calendarMonth}
+                loans={(histories[calendarFor] || [])}
+                orderDetails={orderDetailsById}
+              />
+              <div className="mt-3 text-[11px] text-slate-400 flex items-center gap-4">
+                <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400" />Na cestě tam</span>
+                <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-rose-400" />Na akci</span>
+                <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-violet-400" />Na cestě zpět</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
 
+function CalendarGrid({ monthStart, loans, orderDetails }) {
+  const start = new Date(monthStart);
+  const year = start.getUTCFullYear();
+  const month = start.getUTCMonth();
+  const firstWeekday = new Date(Date.UTC(year, month, 1)).getUTCDay() || 7;
+  const gridStart = new Date(Date.UTC(year, month, 1 - ((firstWeekday + 6) % 7)));
+  const days = Array.from({ length: 42 }, (_, i) =>
+    new Date(Date.UTC(gridStart.getUTCFullYear(), gridStart.getUTCMonth(), gridStart.getUTCDate() + i))
+  );
+
+  const ymd = (s) => {
+    if (!s) return null;
+    const m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (!m) {
+      try {
+        const d = new Date(s);
+        return [d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate()];
+      } catch { return null; }
+    }
+    return [Number(m[1]), Number(m[2]), Number(m[3])];
+  };
+  const dFrom = (s) => {
+    const v = ymd(s); if (!v) return null;
+    return new Date(Date.UTC(v[0], v[1] - 1, v[2]));
+  };
+  const addDays = (d, n) =>
+    new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + n));
+  const key = (d) =>
+    `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+
+  // intervaly
+  const intervals = [];
+  for (const l of loans) {
+    let dep = null, startEv = null, endEv = null, ret = null;
+    if (l.order_id && orderDetails[l.order_id]) {
+      const od = orderDetails[l.order_id];
+      dep = dFrom(od.depart_at || od.date_out);
+      startEv = dFrom(od.date_out || l.date_out);
+      endEv = dFrom(od.date_due || l.date_due);
+      ret = dFrom(od.return_at || od.date_due || l.date_due);
+    } else {
+      dep = dFrom(l.date_out);
+      startEv = dFrom(l.date_out);
+      endEv = dFrom(l.date_due);
+      ret = dFrom(l.date_in || l.date_due);
+    }
+    if (!startEv || !endEv) continue;
+    if (dep && startEv && dep < startEv) {
+      intervals.push({ type: "TRAVEL_OUT", from: dep, to: addDays(startEv, -1) });
+    }
+    intervals.push({ type: "EVENT", from: startEv, to: endEv });
+    if (ret && endEv && ret > endEv) {
+      intervals.push({ type: "TRAVEL_BACK", from: addDays(endEv, 1), to: ret });
+    }
+  }
+
+  const gridEnd = new Date(Date.UTC(gridStart.getUTCFullYear(), gridStart.getUTCMonth(), gridStart.getUTCDate() + 41));
+  const dayTypes = {};
+  const addType = (d, t) => {
+    const k = key(d);
+    if (!dayTypes[k]) dayTypes[k] = new Set();
+    dayTypes[k].add(t);
+  };
+  for (const seg of intervals) {
+    if (!seg.from || !seg.to || seg.from > seg.to) continue;
+    const from = seg.from < gridStart ? new Date(gridStart) : seg.from;
+    const to = seg.to > gridEnd ? new Date(gridEnd) : seg.to;
+    for (let d = new Date(from); d <= to; d = addDays(d, 1)) {
+      addType(d, seg.type);
+    }
+  }
+
+  const monthTitle = new Date(Date.UTC(year, month, 1)).toLocaleString("cs-CZ", {
+    month: "long", year: "numeric", timeZone: "UTC",
+  });
+
+  return (
+    <div>
+      <div className="text-sm font-medium mb-2 capitalize">{monthTitle}</div>
+      <div className="grid grid-cols-7 gap-1 text-[11px]">
+        {["Po","Út","St","Čt","Pá","So","Ne"].map((d) => (
+          <div key={d} className="text-center text-slate-400 py-1">{d}</div>
+        ))}
+        {days.map((d, idx) => {
+          const inMonth = d.getUTCMonth() === month;
+          const types = dayTypes[key(d)] || new Set();
+          const hasEvent = types.has("EVENT");
+          const hasOut = types.has("TRAVEL_OUT");
+          const hasBack = types.has("TRAVEL_BACK");
+          const splitTravel = !hasEvent && hasOut && hasBack;
+          const bg = hasEvent ? "bg-rose-900/40 border-rose-700/60" : "bg-slate-800/40 border-slate-700/50";
+          const text = hasEvent ? "text-rose-200" : "text-slate-300";
+          const splitStyle = splitTravel ? {
+            backgroundImage: "linear-gradient(135deg, rgba(245,158,11,0.35) 50%, rgba(139,92,246,0.35) 50%)",
+            borderColor: "rgba(148,163,184,0.5)",
+          } : undefined;
+          return (
+            <div
+              key={idx}
+              className={`relative h-8 rounded-md border ${splitTravel ? "" : bg} ${inMonth ? "" : "opacity-40"} flex items-center justify-center ${text}`}
+              style={splitStyle}
+              title={
+                hasEvent ? "Na akci" :
+                splitTravel ? "Na cestě tam/zpět" :
+                hasOut ? "Na cestě tam" :
+                hasBack ? "Na cestě zpět" : ""
+              }
+            >
+              {!hasEvent && hasOut && !splitTravel && (
+                <span className="absolute left-1 right-1 top-1 h-1.5 rounded bg-amber-400/65 pointer-events-none" />
+              )}
+              {!hasEvent && hasBack && !splitTravel && (
+                <span className="absolute left-1 right-1 bottom-1 h-1.5 rounded bg-violet-400/65 pointer-events-none" />
+              )}
+              {d.getUTCDate()}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 /* ---------- ZÁKAZNÍCI ---------- */
 
 function CustomersView() {
@@ -2922,6 +3129,11 @@ const Svg = {
   Plus: () => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 text-slate-300">
       <path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6V5Z"/>
+    </svg>
+  ),
+  Calendar: () => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 text-slate-300">
+      <path d="M7 2h2v2h6V2h2v2h3a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h3V2Zm13 7H4v10h16V9ZM6 12h4v4H6v-4Z"/>
     </svg>
   ),
 };
