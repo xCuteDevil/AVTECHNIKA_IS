@@ -26,6 +26,9 @@ env/
 *.db
 dev.db
 
+# Local runtime state
+.pids/
+
 # Logs and runtime artefacts
 logs/
 *.log
