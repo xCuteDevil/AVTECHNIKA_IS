@@ -242,23 +242,27 @@ function ItemsView() {
     }
   };
   const ensureOrderDetailsForItem = async (itemId) => {
-    // stáhni historii výpůjček (kvůli order_id)
-    if (!histories[itemId]) {
-      await loadHistory(itemId);
-    }
-    const loans = histories[itemId] || [];
-    const toFetch = Array.from(
-      new Set(loans.map((l) => l.order_id).filter((id) => !!id && !orderDetailsById[id]))
-    );
-    if (toFetch.length) {
-      await Promise.all(
-        toFetch.map(async (id) => {
-          try {
-            await loadOrderDetail(id);
-          } catch {}
-        })
-      );
-    }
+    // Vždy načteme čerstvou historii a použijeme ji i pro získání IDs zakázek,
+    // abychom předešli zobrazení podle "logistických" dat z výpůjčky.
+    try {
+      const res = await fetch(`${API_BASE}/items/${itemId}/loans`, { cache: "no-store" });
+      if (res.ok) {
+        const loans = await res.json();
+        setHistories((h) => ({ ...h, [itemId]: loans }));
+        const toFetch = Array.from(
+          new Set(loans.map((l) => l.order_id).filter((id) => !!id && !orderDetailsById[id]))
+        );
+        if (toFetch.length) {
+          await Promise.all(
+            toFetch.map(async (id) => {
+              try {
+                await loadOrderDetail(id);
+              } catch {}
+            })
+          );
+        }
+      }
+    } catch {}
   };
 
   useEffect(() => {
@@ -1089,7 +1093,17 @@ function ItemsView() {
           <div className="absolute inset-0 bg-black/50" onClick={() => setCalendarFor(null)} />
           <div className="relative z-10 w-full max-w-xl rounded-xl border border-slate-700 bg-slate-900 shadow-xl">
             <div className="flex items-center justify-between p-3 border-b border-slate-800">
-              <div className="text-sm font-semibold">Kalendář dostupnosti</div>
+              <div className="text-sm font-semibold">
+                {(() => {
+                  const it = items.find((i) => i.id === calendarFor);
+                  if (it) {
+                    const code = it.code || `#${it.id}`;
+                    const name = it.name ? ` · ${it.name}` : "";
+                    return `Kalendář dostupnosti — ${code}${name}`;
+                  }
+                  return "Kalendář dostupnosti";
+                })()}
+              </div>
               <div className="flex items-center gap-2">
                 <button
                   title="Předchozí měsíc"
@@ -1227,12 +1241,26 @@ function CalendarGrid({ monthStart, loans, orderDetails }) {
           const hasOut = types.has("TRAVEL_OUT");
           const hasBack = types.has("TRAVEL_BACK");
           const splitTravel = !hasEvent && hasOut && hasBack;
-          const bg = hasEvent ? "bg-rose-900/40 border-rose-700/60" : "bg-slate-800/40 border-slate-700/50";
-          const text = hasEvent ? "text-rose-200" : "text-slate-300";
-          const splitStyle = splitTravel ? {
-            backgroundImage: "linear-gradient(135deg, rgba(245,158,11,0.35) 50%, rgba(139,92,246,0.35) 50%)",
-            borderColor: "rgba(148,163,184,0.5)",
-          } : undefined;
+          let bg = "bg-slate-800 border-slate-700";
+          let text = "text-slate-200";
+          if (hasEvent) {
+            bg = "bg-rose-600 border-rose-700";
+            text = "text-white";
+          } else if (!splitTravel && hasOut) {
+            bg = "bg-amber-500 border-amber-600";
+            text = "text-white";
+          } else if (!splitTravel && hasBack) {
+            bg = "bg-violet-600 border-violet-700";
+            text = "text-white";
+          }
+          const splitStyle = splitTravel
+            ? {
+                // Nejprve návrat (fialová), poté odjezd (žlutá)
+                backgroundImage:
+                  "linear-gradient(135deg, #8b5cf6 50%, #f59e0b 50%)",
+                borderColor: "#47556980",
+              }
+            : undefined;
           return (
             <div
               key={idx}
@@ -1245,12 +1273,6 @@ function CalendarGrid({ monthStart, loans, orderDetails }) {
                 hasBack ? "Na cestě zpět" : ""
               }
             >
-              {!hasEvent && hasOut && !splitTravel && (
-                <span className="absolute left-1 right-1 top-1 h-1.5 rounded bg-amber-400/65 pointer-events-none" />
-              )}
-              {!hasEvent && hasBack && !splitTravel && (
-                <span className="absolute left-1 right-1 bottom-1 h-1.5 rounded bg-violet-400/65 pointer-events-none" />
-              )}
               {d.getUTCDate()}
             </div>
           );
