@@ -70,3 +70,9 @@ dist/
 
 /.pids/
 /logs/
+/.pids/
+/logs/
+/.venv/
+/venv/
+__pycache__/
+.DS_Store
